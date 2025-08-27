@@ -14,6 +14,7 @@ class Game:
         pygame.display.set_caption("Brackeys 2025")
         self.clock = pygame.Clock()
         print("hello world")
+        print("smth")
         
         asyncio.run(self.run())
 
