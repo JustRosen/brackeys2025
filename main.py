@@ -1,20 +1,38 @@
 import pygame, asyncio, sys
 
 
+from scripts.objects import RectButton, TextButton, GunChamber
+
 class Game:
     #-------------Settings-------------
-    WIDTH = 1100
-    HEIGHT = 470
-    SCALE = 2
+    resolution = [640, 360] #16:9
+    RENDER_SCALE = 2
+    WIDTH = resolution[0] * RENDER_SCALE
+    HEIGHT = resolution[1] * RENDER_SCALE   
+    
 
     def __init__(self):
         #-------------Settings-------------
         pygame.init()
-        self.WINDOW = pygame.display.set_mode((Game.WIDTH, Game.HEIGHT))
-        pygame.display.set_caption("Brackeys 2025")
+        self.window = pygame.display.set_mode((Game.WIDTH, Game.HEIGHT))
+        self.display = pygame.Surface((Game.WIDTH/Game.RENDER_SCALE, Game.HEIGHT/self.RENDER_SCALE))
+        pygame.display.set_caption("6 Round Bluff")
         self.clock = pygame.Clock()
-        print("hello world")
-        print("this is the just rosen branch")
+
+
+        #Buttons
+        pos = [self.display.get_width()-100,self.display.get_height() - 50] #coords are bottom right of screen
+        self.shoot_button = RectButton([100,50], pos, "red", scale=Game.RENDER_SCALE)
+        
+
+
+        self.shoot_self_button = TextButton(True, font_path="", size=21, text="shoot self", text_color= "purple", 
+                                            pos=[100,200], scale=Game.RENDER_SCALE)
+        
+        #Game vars
+        self.gun_chamber = GunChamber()
+        self.gun_chamber.new_slots(3)
+        print(self.gun_chamber.slots)
         
         asyncio.run(self.run())
 
@@ -23,15 +41,41 @@ class Game:
         while True:
             await asyncio.sleep(0)
 
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    pygame.quit()
-                    sys.exit()
+            self.inputs()
 
+            self.graphics()
 
-            self.WINDOW.fill("light green")
+            self.window.blit(pygame.transform.scale(self.display, self.window.get_size()))
             pygame.display.update()
             self.clock.tick(60)
+
+
+    def inputs(self):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1: #Left click
+                    pass
+                    #print("y", self.shoot_self_button.hitbox.y)
+                    #print(pygame.mouse.get_pos())
+                    pass
+
+
+        if self.shoot_button.check_clicked():
+            print("shooterrrrrr")
+
+        if self.shoot_self_button.check_clicked():
+            print("shot me self")
+
+
+    def graphics(self):
+        self.display.fill("light green")
+        self.shoot_button.render(self.display)
+
+        self.shoot_self_button.render(self.display)
 
             
 

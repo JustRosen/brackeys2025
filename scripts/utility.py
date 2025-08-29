@@ -1,4 +1,6 @@
-import pygame
+import pygame, os
+
+BASE_IMAGE_PATH = "assets/"
 
 #Duration is in ms
 class Timer:
@@ -26,3 +28,18 @@ class Timer:
                 return False
         else:
             return False
+
+def load_image(path):
+    img = pygame.image.load(BASE_IMAGE_PATH + path).convert_alpha()
+    #img.set_colorkey(("Black"))
+    
+    return img
+
+def load_images(path):
+    images = []
+    files = os.listdir(BASE_IMAGE_PATH + path)
+
+    #Opens folder and goes thru files
+    for image_name in files:
+        images.append(load_image(path + '/' + image_name))
+        
