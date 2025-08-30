@@ -107,20 +107,71 @@ class RectButton():
     
 
 class GunChamber:
-    def __init__(self):
+    def __init__(self, pos):
+        self.state_textures = {
+            "unknown": pygame.image.load("assets/chamber_states/unknown slot.png"),
+            "loaded": pygame.image.load("assets/chamber_states/loaded slot.png"),
+            "safe": pygame.image.load("assets/chamber_states/safe slot.png"),
+        }
+
+        #The first slot is the top most and the next ones are in clockwise order
+        self.slot_pos = [
+            [12,2], #Top most
+            [21,7], #Top right
+            [21,17], #Bot right
+            [12,22], #Bot most
+            [3,16], #Bot left
+            [3,7], #Top left
+        ]
         self.slots = ['blank']*6
+        self.slot_states = ['unknown']*6
+        self.barrel = pygame.image.load("assets/gun_chamber.png")
+        self.barrel_states = self.barrel.copy()
+        self.pos = pos
   
     
     def new_slots(self, bullets=1):
         self.slots = ['blank']*6 #Resets
+        self.slot_states = ['unknown']*6
         spots_left = [i for i in range(6)]
 
         for _ in range(bullets):
             spot = random.choice(spots_left)
             self.slots[spot] = "loaded"
+            self.slot_states[spot] = "loaded"
             spots_left.remove(spot)
+        
+        self.add_state_textures()
     
     def rotate_chamber(self):
-        pass
+        old_slots = self.slots.copy()
+        old_states = self.slot_states.copy()
+        for index in range(-1, len(self.slots)-1):
+            self.slots[index+1] = old_slots[index]
+            self.slot_states[index+1] = old_states[index]
+        self.add_state_textures()
+        #print("new:", self.slots)
+
+    def add_state_textures(self):
+        self.barrel_states = self.barrel.copy()
+        for index, state in enumerate(self.slot_states):
+            texture = self.state_textures[state]
+            pos = self.slot_pos[index]
+            self.barrel_states.blit(texture, pos)
+
+    def render(self, surface):
+        surface.blit(self.barrel_states, self.pos)
+
+    def test_render(self, surface):
+        color = "grey"
+        sep = 20
+        for index, bullet in enumerate(self.slots):
+            if bullet == "loaded":
+                color = "red"
+            else:
+                color = "grey"
+            pos = [400 + (sep * index) + index * 40, 50]
+            pygame.draw.rect(surface, color, pygame.Rect(pos, [40,40]))
+        
 
     

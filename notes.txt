@@ -1,0 +1,13 @@
+
+
+i think there should only be 2 power ups u get per duel
+
+
+add power ups
+
+rotate - rotate the chamber forward once
+reveal - reveal a random unknown slot
+skip - skips your turn
+gamble - Gain another turn if u shoot yourself
+
+maybe an extra life
