@@ -119,5 +119,8 @@ class GunChamber:
             spot = random.choice(spots_left)
             self.slots[spot] = "loaded"
             spots_left.remove(spot)
+    
+    def rotate_chamber(self):
+        pass
 
     

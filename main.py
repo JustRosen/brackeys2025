@@ -2,6 +2,7 @@ import pygame, asyncio, sys
 
 
 from scripts.objects import RectButton, TextButton, GunChamber
+from scripts.entity import Player, Enemy
 
 class Game:
     #-------------Settings-------------
@@ -22,13 +23,17 @@ class Game:
 
         #Buttons
         pos = [self.display.get_width()-100,self.display.get_height() - 50] #coords are bottom right of screen
-        self.shoot_button = RectButton([100,50], pos, "red", scale=Game.RENDER_SCALE)
+        self.shoot_button = TextButton(sysfont=True, font_path="", size=21, text= "Shoot Enemy",
+                                       pos=[0,0],
+                                       text_color="red", 
+                                       scale=Game.RENDER_SCALE)
         
-
-
-        self.shoot_self_button = TextButton(True, font_path="", size=21, text="shoot self", text_color= "purple", 
-                                            pos=[100,200], scale=Game.RENDER_SCALE)
+        self.shoot_self_button = TextButton(True, font_path="", size=21, text="shoot self", text_color= "blue", 
+                                            pos=[0,self.shoot_button.bg_surf.get_height() + 10], scale=Game.RENDER_SCALE)
         
+        #Entities
+        self.player = Player([100,100], [100,150], "blue")
+        self.enemy = Enemy((100,100), [400,150], "red")
         #Game vars
         self.gun_chamber = GunChamber()
         self.gun_chamber.new_slots(3)
@@ -73,9 +78,17 @@ class Game:
 
     def graphics(self):
         self.display.fill("light green")
-        self.shoot_button.render(self.display)
 
+        #Players
+        self.player.render(self.display)
+        self.enemy.render(self.display)
+
+        #Buttons
+        self.shoot_button.render(self.display)
         self.shoot_self_button.render(self.display)
+
+
+
 
             
 
