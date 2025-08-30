@@ -132,6 +132,8 @@ class Game:
 
         #text setup
         FONT = pygame.font.Font("assets/Silver.ttf",40)
+        horror_font = pygame.font.Font("assets/yoster.ttf",40)
+         
         kill_counter = FONT.render(str(self.kills), True, "black")
         text_rect = kill_counter.get_rect(center=(self.WIDTH//2*(0.07), self.HEIGHT//2*(0.05)))
         round = FONT.render(str(self.powerups), True, "black")
@@ -163,7 +165,7 @@ class Game:
 
         #gameover screen
         if self.hp == False:
-            gameover = FONT.render("Was it worth the biscuit?", True, "black","white")
+            gameover = horror_font.render("Was it worth the biscuit?", True, "black","white")
             gameover_rect = gameover.get_rect(center=(self.WIDTH//2*(.5), self.HEIGHT//2*(.5)))
             self.display.blit(gameover,gameover_rect)
            
