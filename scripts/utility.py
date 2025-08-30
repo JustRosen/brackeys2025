@@ -1,4 +1,4 @@
-import pygame, os
+import pygame, os, json
 
 BASE_IMAGE_PATH = "assets/"
 
@@ -42,4 +42,12 @@ def load_images(path):
     #Opens folder and goes thru files
     for image_name in files:
         images.append(load_image(path + '/' + image_name))
+
+def save_score(path, score):
+    with open(path, 'w') as file:
+        json.dump(score, file) 
+
+def load_score(path):
+    with open(path, 'r') as file:
+        return json.load(file)
         
