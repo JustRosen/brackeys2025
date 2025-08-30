@@ -1,0 +1,1 @@
+access the first bullet in the list to check if we die or not
