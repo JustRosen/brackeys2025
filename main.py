@@ -103,35 +103,35 @@ class Game:
         icon_width = 30
         icon_height = 30
         #image setup
-        background = pygame.image.load("brackeys2025/assets/background.png")
+        background = pygame.image.load("assets/background.png")
         background = pygame.transform.scale(background,(self.WIDTH//2,self.HEIGHT//2))
 
-        heart = pygame.image.load("brackeys2025/assets/heart.png") 
+        heart = pygame.image.load("assets/heart.png") 
         heart = pygame.transform.scale(heart,(icon_width,icon_height))
         
-        broken_heart = pygame.image.load("brackeys2025/assets/brokenheart.png") 
+        broken_heart = pygame.image.load("assets/brokenheart.png") 
         broken_heart = pygame.transform.scale(broken_heart,(icon_width,icon_height))
 
-        powerup1 = pygame.image.load("brackeys2025/assets/powerup1.png") 
+        powerup1 = pygame.image.load("assets/powerup1.png") 
         powerup1 = pygame.transform.scale(powerup1,(icon_width,icon_height))
 
-        powerup2 = pygame.image.load("brackeys2025/assets/powerup2.png") 
+        powerup2 = pygame.image.load("assets/powerup2.png") 
         powerup2 = pygame.transform.scale(powerup2,(icon_width,icon_height))
 
-        powerup3 = pygame.image.load("brackeys2025/assets/powerup3.png") 
+        powerup3 = pygame.image.load("assets/powerup3.png") 
         powerup3 = pygame.transform.scale(powerup3,(icon_width,icon_height))
 
-        powerup4 = pygame.image.load("brackeys2025/assets/powerup4.png") 
+        powerup4 = pygame.image.load("assets/powerup4.png") 
         powerup4 = pygame.transform.scale(powerup4,(icon_width,icon_height))
 
-        powerup5 = pygame.image.load("brackeys2025/assets/powerup5.png") 
+        powerup5 = pygame.image.load("assets/powerup5.png") 
         powerup5 = pygame.transform.scale(powerup5,(icon_width,icon_height))
 
-        powerup6 = pygame.image.load("brackeys2025/assets/powerup6.png") 
+        powerup6 = pygame.image.load("assets/powerup6.png") 
         powerup6 = pygame.transform.scale(powerup6,(icon_width,icon_height))
 
         #text setup
-        FONT = pygame.font.Font("brackeys2025/assets/Silver.ttf",40)
+        FONT = pygame.font.Font("assets/Silver.ttf",40)
         kill_counter = FONT.render(str(self.kills), True, "black")
         text_rect = kill_counter.get_rect(center=(self.WIDTH//2*(0.07), self.HEIGHT//2*(0.05)))
         round = FONT.render(str(self.powerups), True, "black")
@@ -139,6 +139,7 @@ class Game:
         #what's on screen
         self.display.fill("white")
         self.display.blit(background,(0,0))
+        self.display.fill("white")
         self.shoot_button.render(self.display)
 
         self.shoot_self_button.render(self.display)
@@ -165,13 +166,22 @@ class Game:
             gameover = FONT.render("Was it worth the biscuit?", True, "black","white")
             gameover_rect = gameover.get_rect(center=(self.WIDTH//2*(.5), self.HEIGHT//2*(.5)))
             self.display.blit(gameover,gameover_rect)
-            gameover_button = TextButton("Silver.ttf","brackeys2025/assets/Silver.ttf",30,"Retry?","black",(225,250),1)
-            gameover_button.render(self.display)
+           
+            retry_button = TextButton(True, font_path="assets/Silver/.ttf", size=30, text="Retry", text_color= "purple", 
+                                            pos=[230,220], scale=Game.RENDER_SCALE)
+            retry_button.render(self.display)
+
+            quit_button = TextButton(True, font_path="assets/Silver/.ttf", size=30, text="Give up", text_color= "purple", 
+                                            pos=[350,220], scale=Game.RENDER_SCALE)
+            quit_button.render(self.display)
 
         
-            if gameover_button.check_clicked():#retry button
-                print("hi")
-                
+            if quit_button.check_clicked():#quit button
+                pygame.quit()
+                sys.exit()
+            if retry_button.check_clicked():#retry
+                pass
+                #self.run()
             
     
 
