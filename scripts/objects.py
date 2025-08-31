@@ -1,5 +1,7 @@
 import pygame, random
 
+from scripts.utility import load_images
+
 
 class TextSurf:
     def __init__(self, sysfont, font_path, size, text, text_color, pos):
@@ -105,6 +107,38 @@ class RectButton():
 
         return action
     
+class SurfButton:
+    def __init__(self, image, pos, scale):
+        
+        self.pos = pos
+        self.surface = image.copy()
+
+        self.box = pygame.Rect(pos[0]*scale, pos[1]*scale, self.surface.get_width() * scale, self.surface.get_height() * scale)
+        self.clicked = False
+
+    def render(self,surface):
+        surface.blit(self.surface, self.pos)
+
+    def check_clicked(self):
+        action = False #Action will be returned to determine if the button was pressed or not
+
+        mpos = pygame.mouse.get_pos()
+
+        if self.box.collidepoint(mpos):
+            if pygame.mouse.get_pressed()[0] == 1 and not self.clicked:
+                self.clicked = True
+                action = True
+
+        if not pygame.mouse.get_pressed()[0]: #if it returns a 0 it means false
+            self.clicked = False
+
+        return action
+    
+class Item(SurfButton):
+    def __init__(self, image, pos, scale, type):
+        super().__init__(image, pos, scale)
+        self.type = type
+
 
 class GunChamber:
     def __init__(self, pos):
@@ -113,6 +147,8 @@ class GunChamber:
             "loaded": pygame.image.load("assets/chamber_states/loaded slot.png"),
             "safe": pygame.image.load("assets/chamber_states/safe slot.png"),
         }
+
+        self.rotate_textures = load_images("rotate")
 
         #The first slot is the top most and the next ones are in clockwise order
         self.slot_pos = [
@@ -123,11 +159,17 @@ class GunChamber:
             [3,16], #Bot left
             [3,7], #Top left
         ]
+
         self.slots = ['blank']*6
         self.slot_states = ['unknown']*6
         self.barrel = pygame.image.load("assets/gun_chamber.png")
         self.barrel_states = self.barrel.copy()
+        self.current_texture = self.barrel_states
         self.pos = pos
+
+        self.rotating = False
+        self.frame = 0
+        self.frame_duration = 5
   
     
     def new_slots(self, bullets=1):
@@ -152,6 +194,9 @@ class GunChamber:
         self.add_state_textures()
         #print("new:", self.slots)
 
+
+    #Graphical
+
     def add_state_textures(self):
         self.barrel_states = self.barrel.copy()
         for index, state in enumerate(self.slot_states):
@@ -159,8 +204,23 @@ class GunChamber:
             pos = self.slot_pos[index]
             self.barrel_states.blit(texture, pos)
 
+        self.current_texture = self.barrel_states
+
+    def animate_rotate(self):
+        
+        self.frame = (self.frame+1) % (len(self.rotate_textures) * self.frame_duration)
+        converted_frame = self.frame // self.frame_duration
+
+        self.current_texture = self.rotate_textures[converted_frame]
+
+        #If its the last frame then end the animation
+        if converted_frame == len(self.rotate_textures) - 1:
+            self.frame = 0
+            self.rotating = False
+            self.current_texture = self.barrel_states
+
     def render(self, surface):
-        surface.blit(self.barrel_states, self.pos)
+        surface.blit(self.current_texture, self.pos)
 
     def test_render(self, surface):
         color = "grey"

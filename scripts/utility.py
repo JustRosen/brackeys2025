@@ -42,6 +42,8 @@ def load_images(path):
     #Opens folder and goes thru files
     for image_name in files:
         images.append(load_image(path + '/' + image_name))
+    
+    return images
 
 def save_score(path, score):
     with open(path, 'w') as file:
@@ -51,3 +53,18 @@ def load_score(path):
     with open(path, 'r') as file:
         return json.load(file)
         
+def load_images_as_dic(path, remove_suffix = False, suffix = None):
+    images = {}
+    files = os.listdir(BASE_IMAGE_PATH + path)
+
+    #Opens folder and goes thru files
+    for image_name in files:
+        key = image_name
+
+        if remove_suffix:
+            key = image_name.removesuffix(suffix)
+        
+        images[key] = load_image(path + '/' + image_name)
+        
+    return images
+
