@@ -1,16 +1,19 @@
-import pygame, asyncio, sys, json
+import pygame, asyncio, sys, json, random
 
-from scripts.utility import save_score, load_score
-from scripts.objects import RectButton, TextButton, GunChamber, TextSurf
+
+from scripts.utility import save_score, load_score, load_images_as_dic, Timer
+from scripts.objects import RectButton, TextButton, GunChamber, TextSurf, SurfButton, Item
 from scripts.entity import Player, Enemy
+from scripts.items import skip, reveal, rotate, gamble
+from scripts.gamestate import GameStateManager
 
 class Game:
     #-------------Settings-------------
     resolution = [640, 360] #16:9
-    RENDER_SCALE = 6
+    RENDER_SCALE = 5
     WIDTH = resolution[0] * 2
     HEIGHT = resolution[1] * 2 
-    
+    item_size = 16
 
     def __init__(self):
         #-------------Settings-------------
@@ -21,8 +24,9 @@ class Game:
         self.clock = pygame.Clock()
 
         #-------------Objects-------------
+
         #Buttons
-        pos = [self.display.get_width()-100,self.display.get_height() - 50] #coords are bottom right of screen
+        #pos = [self.display.get_width()-100,self.display.get_height() - 50] #coords are bottom right of screen
         self.shoot_button = TextButton(sysfont=True, font_path="", size=10, text= "Shoot Enemy",
                                        pos=[0,0],
                                        text_color="red", 
@@ -41,15 +45,18 @@ class Game:
         #Gun Chamber
         self.gun_chamber = GunChamber(pos=[0,0])
         self.gun_chamber.pos = [self.display.get_width()//2 - self.gun_chamber.barrel.get_width()//2 ,10//Game.RENDER_SCALE]
-        self.gun_chamber.new_slots()
-        print(self.gun_chamber.slots)
+        self.gun_chamber.new_slots(random.randint(1,1))
 
 
+        #Items
+        self.item_textures = load_images_as_dic("items", True, '.png')
+        self.item_names = list(self.item_textures.keys())
+
+        print(random.choice(list(self.item_textures.keys())))
         #-------------Game vars-------------
 
-        #text
-
-        self.score = 0
+        #Score
+        self.score = 100
         self.highscore = 0
         try:
             self.highscore = load_score("score/highscore.json")
@@ -67,8 +74,17 @@ class Game:
                                    pos=[0,0])
         self.highscore_surf.pos = [self.window.get_width()-self.highscore_surf.surface.get_width(),self.highscore_surf.surface.get_height()]
 
+        #Vars
         self.turn = "player"
 
+
+        #Game states
+        self.gamestate_manager = GameStateManager("game loop")
+        self.game_loop = GameLoop(self)
+        self.get_item = GetItem(self)
+        self.death_scene = DeathScene(self)
+
+        self.states = {"game loop": self.game_loop, "get item": self.get_item, "death scene": self.death_scene}
 
         asyncio.run(self.run())
 
@@ -77,9 +93,13 @@ class Game:
         while True:
             await asyncio.sleep(0)
 
-            self.inputs()
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    save_score("score/highscore.json", self.highscore)
+                    pygame.quit()
+                    sys.exit()
 
-            self.graphics()
+            self.states[self.gamestate_manager.get_state()].run(self)
 
             self.window.blit(pygame.transform.scale(self.display, self.window.get_size()))
 
@@ -87,100 +107,17 @@ class Game:
             self.score_surf.render(self.window)
             self.highscore_surf.render(self.window)
 
+            #Testing how items would look
+            # for i in range(4):
+            #     if i % 2:
+            #         color = "black"
+            #     else:
+            #         color = "yellow"
+            #     pygame.draw.rect(self.window, color, [[0,i*16*Game.RENDER_SCALE], [16*Game.RENDER_SCALE,16*Game.RENDER_SCALE]], border_radius= 10)
+
             pygame.display.update()
             self.clock.tick(60)
-
-
-    def inputs(self):
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                save_score("score/highscore.json", self.highscore)
-                pygame.quit()
-                sys.exit()
-            
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                if event.button == 1: #Left click
-                    pass
-                    #print("y", self.shoot_self_button.hitbox.y)
-                    #print(pygame.mouse.get_pos())
-                    pass
-
         
-        if self.turn == "player":
-            self.player_turn()
-        elif self.turn == "enemy":
-            pygame.time.delay(1000)
-            self.enemy_turn()
-        
-
-
-    def player_turn(self):
-        if self.shoot_button.check_clicked():
-            if self.gun_chamber.slots[0] == "loaded":
-                print("enemy dead")
-
-
-                self.score += 1
-                self.update_score()
-                self.update_highscore()
-                
-
-                self.gun_chamber.new_slots()
-            else:
-                self.gun_chamber.slot_states[0] = "safe"
-                self.enemy.update_chamber()
-                self.gun_chamber.rotate_chamber()
-                self.turn = "enemy"
-
-        if self.shoot_self_button.check_clicked():
-            if self.gun_chamber.slots[0] == "loaded":
-                print("your dead")
-
-                self.update_highscore()
-     
-                self.score = 0
-                self.update_score()
-                
-                self.gun_chamber.new_slots()
-
-            elif self.gun_chamber.slots[0] == "blank":
-                self.gun_chamber.slot_states[0] = "safe"
-                self.gun_chamber.rotate_chamber()
-                self.turn = "enemy"        
-
-    def enemy_turn(self):
-         #Enemy Ai
-        if self.enemy.decision() == "shoot player":
-            if self.gun_chamber.slots[0] == "loaded":
-                print("enemy has shot u")
-
-                self.update_highscore()
-                self.score = 0
-                self.update_score()
-                
-                self.gun_chamber.new_slots()
-            else:
-                print("enemy tried to shoot u")
-                self.gun_chamber.slot_states[0] = "safe"
-                self.gun_chamber.rotate_chamber()
-                self.turn = "player"
-
-        elif self.enemy.decision() == "shoot self":
-            if self.gun_chamber.slots[0] == "loaded":
-                print("enemy has shot themself to death")
-                
-                self.score += 1
-                self.update_score()
-                self.update_highscore()
-
-                self.gun_chamber.new_slots()
-                self.turn = "player"
-            else:
-                print("enemy tried to shoot themself")
-                self.gun_chamber.slot_states[0] = "safe"
-                self.gun_chamber.rotate_chamber()
-                self.turn = "player"
-
     def update_score(self):
         self.score_surf.change_text(f"Score: {self.score}", "black")
         self.score_surf.pos = [self.window.get_width()-self.score_surf.surface.get_width(),0]
@@ -194,25 +131,240 @@ class Game:
 
 
 
-    def graphics(self):
-        self.display.fill("dark grey")
+
+
+class GameLoop:
+    def __init__(self, game):
+        self.gamestate_manager = game.gamestate_manager 
+        self.enemy_turn_timer = Timer(2000)
+
+    def run(self, game):
+
+        self.inputs(game)
+        self.graphics(game)
+
+    def inputs(self, game):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                save_score("score/highscore.json", game.highscore)
+                pygame.quit()
+                sys.exit()
+            
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1: #Left click
+                    pass
+                    #print("y", self.shoot_self_button.hitbox.y)
+                    #print(pygame.mouse.get_pos())
+                    pass
+
+        
+        if game.turn == "player" and not game.gun_chamber.rotating and not game.enemy.animating:
+            self.player_turn(game)
+        elif game.turn == "enemy" and not game.gun_chamber.rotating and not game.player.animating:
+            self.enemy_turn(game)
+    
+    def player_turn(self, game):
+        if game.shoot_button.check_clicked():
+            if game.gun_chamber.slots[0] == "loaded":
+                print("enemy dead")
+
+
+                game.score += 1
+                game.update_score()
+                game.update_highscore()
+                
+                game.player.inventory.clear()
+                self.decide_bullet_count(game)
+
+                #game.player.animate_textures = game.player.shoot_textures
+
+            elif game.gun_chamber.slots[0] == "blank":
+
+                game.gun_chamber.rotating = True
+                game.gun_chamber.slot_states[0] = "safe"
+                game.enemy.update_chamber()
+                game.gun_chamber.rotate_chamber()
+
+                game.turn = "enemy"
+
+            game.player.animate_textures = game.player.shoot_textures
+            game.player.animating = True
+            
+
+        if game.shoot_self_button.check_clicked():
+            if game.gun_chamber.slots[0] == "loaded":
+                print("your dead")
+
+                game.update_highscore()
+     
+                game.score = 0
+                game.update_score()
+                
+                game.player.inventory.clear()
+                self.decide_bullet_count(game)
+
+            elif game.gun_chamber.slots[0] == "blank":
+
+
+                game.gun_chamber.rotating = True
+                game.gun_chamber.slot_states[0] = "safe"
+                game.gun_chamber.rotate_chamber()
+
+                game.turn = "enemy"       
+                self.gamestate_manager.set_state("get item") 
+
+                #game.player.animate_textures = game.player.shoot_self_safe
+
+            game.player.animate_textures = game.player.shoot_self_safe
+            game.player.animating = True
+
+    def enemy_turn(self, game):
+         #Enemy Ai
+        if game.enemy.decision() == "shoot player":
+            if game.gun_chamber.slots[0] == "loaded":
+                print("enemy has shot u")
+
+                game.update_highscore()
+                game.score = 0
+                game.update_score()
+                
+                game.player.inventory.clear()
+                self.decide_bullet_count(game)
+
+                #game.enemy.animate_textures = game.enemy.shoot_textures
+
+                
+            else:
+                print("enemy tried to shoot u")
+
+                game.gun_chamber.rotating = True
+                game.gun_chamber.slot_states[0] = "safe"
+                game.gun_chamber.rotate_chamber()
+                game.turn = "player"
+
+            game.enemy.animate_textures = game.enemy.shoot_textures
+            game.enemy.animating = True
+
+        elif game.enemy.decision() == "shoot self":
+            if game.gun_chamber.slots[0] == "loaded":
+                print("enemy has shot themself to death")
+                
+                game.score += 1
+                game.update_score()
+                game.update_highscore()
+
+                game.player.inventory.clear()
+                self.decide_bullet_count(game)
+                game.turn = "player"
+            else:
+                print("enemy tried to shoot themself")
+
+                game.gun_chamber.rotating = True
+                game.gun_chamber.slot_states[0] = "safe"
+                game.gun_chamber.rotate_chamber()
+                game.turn = "player"
+
+                #game.enemy.animate_textures = game.enemy.shoot_self_safe
+
+            game.enemy.animate_textures = game.enemy.shoot_self_safe
+            game.enemy.animating = True
+
+    def decide_bullet_count(self, game):
+        
+        minn = 1
+        maxn = 1
+
+        if game.score >= 18:
+            minn = 2
+            maxn = 5
+        elif game.score >= 14:
+            minn = 1
+            maxn = 5
+        elif game.score >= 10:
+            minn = 1
+            maxn = 4
+        elif game.score >= 6:
+            minn = 1
+            maxn = 3
+        elif game.score >= 2:
+            minn = 1
+            maxn = 2
+
+        game.bullet_count = random.randint(minn, maxn)
+        game.gun_chamber.new_slots(game.bullet_count)
+
+    def graphics(self, game):
+        game.display.fill("dark grey")
 
         #Players
-        self.player.render(self.display)
-        self.enemy.render(self.display)
+        game.player.render(game.display)
+        game.enemy.render(game.display)
 
         #Score
         #self.score_surf.render(self.display)
         #Buttons
-        self.shoot_button.render(self.display)
-        self.shoot_self_button.render(self.display)
+        game.shoot_button.render(game.display)
+        game.shoot_self_button.render(game.display)
 
-        self.gun_chamber.render(self.display)
+        #Rotating animation
+        if game.gun_chamber.rotating:
+            game.gun_chamber.animate_rotate()
+        game.gun_chamber.render(game.display)
 
+        #Animation
+        if game.player.animating:
+            game.player.animate()
 
+        if game.enemy.animating:
+            game.enemy.animate()
 
+        #Items
+        if game.player.inventory:
+            for item in game.player.inventory:
+                item.render(game.display)
 
+class GetItem:
+    def __init__(self, game):
+        self.gamestate_manager = game.gamestate_manager 
+
+        
+        self.starting_pos = [game.display.get_width()*.5 - (Game.item_size*1.5), (16 * 2.2)]
+        self.seperation = 16
+        self.create_items(2, game)
+
+    def run(self, game):
+        game.game_loop.graphics(game)
+
+        for key, item in self.item_choices.items():
+            item.render(game.display)
             
+            #Add item to user inventory and exits out state
+            if item.check_clicked():
+                self.gamestate_manager.set_state("game loop")
+                pos = [10, 16 * len(game.player.inventory) + (10 * len(game.player.inventory))]
+                game.player.inventory.append(Item(game.item_textures[key], pos, Game.RENDER_SCALE, key))
+                del self.item_choices
+                self.create_items(2, game)
+                print(game.player.inventory)
+                return
+    
+
+    def create_items(self, count, game):
+        self.item_choices = {}
+        items = game.item_names.copy()
+        for i in range(count):
+            item = random.choice(items)
+            items.remove(item)
+
+            texture = game.item_textures[item]
+            pos = [self.starting_pos[0] + (i * self.seperation) + (i *texture.get_width()), self.starting_pos[1]]
+            self.item_choices[item] = Item(texture, pos, Game.RENDER_SCALE, item)
+
+
+
+class DeathScene:
+    def __init__(self, game):
+        self.gamestate_manager = game.gamestate_manager         
 
 
 if __name__ == "__main__":
