@@ -1,9 +1,9 @@
-import pygame, random
+import pygame, random, math
 
 from scripts.utility import load_images
 
 class Player:
-    def __init__(self, path, pos):
+    def __init__(self, path, pos, render_scale):
         self.image = pygame.image.load(path).convert_alpha()
         self.pos = pos
 
@@ -19,6 +19,13 @@ class Player:
         self.animate_textures = None
         self.current_texture = self.image
 
+        self.render_scale = render_scale
+
+        rect_pos = [self.pos[0], self.pos[1]]
+        rect_size = [ self.image.get_width(), self.image.get_height()]
+        self.box = pygame.Rect(rect_pos, rect_size)
+
+
     def animate(self):
 
         #If its the last frame then end the animation
@@ -33,13 +40,25 @@ class Player:
 
         self.current_texture = self.animate_textures[converted_frame]
 
-        
+    def check_clicked(self, mpos):
+        action = False #Action will be returned to determine if the button was pressed or not
+
+        if self.box.collidepoint(mpos):
+            if pygame.mouse.get_pressed()[0] == 1 and not self.clicked:
+                self.clicked = True
+                action = True
+
+        if not pygame.mouse.get_pressed()[0]: #if it returns a 0 it means false
+            self.clicked = False
+
+        return action
     
+
     def render(self, surface):
         surface.blit(self.current_texture, self.pos)
 
 class Enemy:
-    def __init__(self, path, pos):
+    def __init__(self, path, pos, render_scale):
         self.image = pygame.image.load(path).convert_alpha()
 
         self.shoot_textures = load_images("enemy shoot")
@@ -58,6 +77,13 @@ class Enemy:
 
         self.animate_textures = None
         self.current_texture = self.image
+
+        rect_pos = [self.pos[0], self.pos[1]]
+        rect_size = [ self.image.get_width(), self.image.get_height()]
+        self.box = pygame.Rect(rect_pos, rect_size)
+
+
+
 
     def animate(self):
 
@@ -80,8 +106,19 @@ class Enemy:
         self.current_texture = self.animate_textures[converted_frame]
 
         
+    def check_clicked(self, mpos):
+        action = False #Action will be returned to determine if the button was pressed or not
 
-        
+        if self.box.collidepoint(mpos):
+            if pygame.mouse.get_pressed()[0] == 1 and not self.clicked:
+                self.clicked = True
+                action = True
+
+        if not pygame.mouse.get_pressed()[0]: #if it returns a 0 it means false
+            self.clicked = False
+
+        return action
+    
 
     def render(self, surface):
         surface.blit(self.current_texture, self.pos)

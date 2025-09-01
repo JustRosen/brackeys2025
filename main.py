@@ -10,7 +10,7 @@ from scripts.gamestate import GameStateManager
 class Game:
     #-------------Settings-------------
     resolution = [640, 360] #16:9
-    RENDER_SCALE = 5
+    RENDER_SCALE = 7
     WIDTH = resolution[0] * 2
     HEIGHT = resolution[1] * 2 
     item_size = 16
@@ -19,7 +19,7 @@ class Game:
         #-------------Settings-------------
         pygame.init()
         self.window = pygame.display.set_mode((Game.WIDTH, Game.HEIGHT))
-        self.display = pygame.Surface((Game.WIDTH/Game.RENDER_SCALE, Game.HEIGHT/self.RENDER_SCALE))
+        self.display = pygame.Surface((Game.WIDTH//Game.RENDER_SCALE, Game.HEIGHT//Game.RENDER_SCALE))
         pygame.display.set_caption("6 Round Bluff")
         self.clock = pygame.Clock()
 
@@ -37,10 +37,13 @@ class Game:
     
         
         #Entities
-        pos = [(self.display.get_width()*.1) * 3, self.display.get_height() - 32]
-        self.player = Player("assets/player.png", pos)
-        pos = [(self.display.get_width()*.1) * 7, self.display.get_height()- 32]
-        self.enemy = Enemy("assets/enemy.png", pos)
+        entity_height = 32
+        pos = [self.display.get_width()*.3, int(self.display.get_height() - entity_height)]
+        self.player = Player("assets/player.png", pos, Game.RENDER_SCALE)
+    
+
+        pos = [self.display.get_width()*.7, int(self.display.get_height()- entity_height)]
+        self.enemy = Enemy("assets/enemy.png", pos, Game.RENDER_SCALE)
 
         #Gun Chamber
         self.gun_chamber = GunChamber(pos=[0,0])
@@ -52,7 +55,7 @@ class Game:
         self.item_textures = load_images_as_dic("items", True, '.png')
         self.item_names = list(self.item_textures.keys())
 
-        print(random.choice(list(self.item_textures.keys())))
+    
         #-------------Game vars-------------
 
         #Score
@@ -93,19 +96,34 @@ class Game:
         while True:
             await asyncio.sleep(0)
 
-            for event in pygame.event.get():
+            self.mpos = self.mouse_pos_in_display()
+
+            self.events = pygame.event.get()
+            for event in self.events:
                 if event.type == pygame.QUIT:
                     save_score("score/highscore.json", self.highscore)
                     pygame.quit()
                     sys.exit()
 
+                # if event.type == pygame.MOUSEBUTTONDOWN:
+                #     if event.button == 1:
+                #         pygame.draw.rect(self.window, "green", self.player.box)
+                #         pygame.draw.rect(self.window, "red", self.enemy.box)
             self.states[self.gamestate_manager.get_state()].run(self)
 
-            self.window.blit(pygame.transform.scale(self.display, self.window.get_size()))
+            self.window.blit(pygame.transform.scale(self.display, self.window.get_size()), (0,0))
 
             #Post display graphics
             self.score_surf.render(self.window)
             self.highscore_surf.render(self.window)
+
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                    if event.button == 1:
+                        pygame.draw.rect(self.window, "green", self.player.box)
+                        pygame.draw.rect(self.window, "red", self.enemy.box)
+
+            
+            
 
             #Testing how items would look
             # for i in range(4):
@@ -130,7 +148,11 @@ class Game:
         self.highscore_surf.pos = [self.window.get_width()-self.highscore_surf.surface.get_width(),self.highscore_surf.surface.get_height()]
 
 
-
+    def mouse_pos_in_display(self):
+        mx, my = pygame.mouse.get_pos()
+        sx = self.window.get_width()  / self.display.get_width()
+        sy = self.window.get_height() / self.display.get_height()
+        return [int(mx / sx), int(my / sy)]
 
 
 class GameLoop:
@@ -144,7 +166,7 @@ class GameLoop:
         self.graphics(game)
 
     def inputs(self, game):
-        for event in pygame.event.get():
+        for event in game.events:
             if event.type == pygame.QUIT:
                 save_score("score/highscore.json", game.highscore)
                 pygame.quit()
@@ -156,7 +178,11 @@ class GameLoop:
                     #print("y", self.shoot_self_button.hitbox.y)
                     #print(pygame.mouse.get_pos())
                     pass
-
+        
+        if game.player.check_clicked(game.mpos):
+            print("clicked on player")
+        if game.enemy.check_clicked(game.mpos):
+            print("clicked on enemy")
         
         if game.turn == "player" and not game.gun_chamber.rotating and not game.enemy.animating:
             self.player_turn(game)

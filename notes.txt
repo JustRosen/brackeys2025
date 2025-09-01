@@ -10,4 +10,6 @@ reveal - reveal a random unknown slot
 skip - skips your turn
 gamble - Gain another turn if u shoot yourself
 
-maybe an extra life
+maybe an extra life\
+
+instead of scaling up rects, instead divide the mpos by the render_Scale or not the render scale but the   mpos divided by (window size / display size)
