@@ -56,7 +56,7 @@ class Game:
         #-------------Game vars-------------
 
         #Score
-        self.score = 100
+        self.score = 0
         self.highscore = 0
         try:
             self.highscore = load_score("score/highscore.json")
@@ -73,6 +73,12 @@ class Game:
                                    text= f"Highscore: {self.highscore}", text_color="black",
                                    pos=[0,0])
         self.highscore_surf.pos = [self.window.get_width()-self.highscore_surf.surface.get_width(),self.highscore_surf.surface.get_height()]
+
+        self.death_text = TextSurf(sysfont=False, font_path= "fonts/yoster.ttf", size=40,
+                                   text="You have died!", text_color="red", 
+                                   pos= [0,0])
+        self.death_text.pos = [self.window.get_width()//2 - self.death_text.surface.get_width()//2, self.window.get_width()* .2]
+
 
         #Vars
         self.turn = "player"
@@ -93,7 +99,8 @@ class Game:
         while True:
             await asyncio.sleep(0)
 
-            for event in pygame.event.get():
+            self.events = pygame.event.get()
+            for event in self.events:
                 if event.type == pygame.QUIT:
                     save_score("score/highscore.json", self.highscore)
                     pygame.quit()
@@ -106,14 +113,8 @@ class Game:
             #Post display graphics
             self.score_surf.render(self.window)
             self.highscore_surf.render(self.window)
-
-            #Testing how items would look
-            # for i in range(4):
-            #     if i % 2:
-            #         color = "black"
-            #     else:
-            #         color = "yellow"
-            #     pygame.draw.rect(self.window, color, [[0,i*16*Game.RENDER_SCALE], [16*Game.RENDER_SCALE,16*Game.RENDER_SCALE]], border_radius= 10)
+            if self.gamestate_manager.current_state == "death scene":
+                self.death_text.render(self.window)
 
             pygame.display.update()
             self.clock.tick(60)
@@ -143,21 +144,7 @@ class GameLoop:
         self.inputs(game)
         self.graphics(game)
 
-    def inputs(self, game):
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                save_score("score/highscore.json", game.highscore)
-                pygame.quit()
-                sys.exit()
-            
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                if event.button == 1: #Left click
-                    pass
-                    #print("y", self.shoot_self_button.hitbox.y)
-                    #print(pygame.mouse.get_pos())
-                    pass
-
-        
+    def inputs(self, game): 
         if game.turn == "player" and not game.gun_chamber.rotating and not game.enemy.animating:
             self.player_turn(game)
         elif game.turn == "enemy" and not game.gun_chamber.rotating and not game.player.animating:
@@ -202,16 +189,16 @@ class GameLoop:
                 
                 game.player.inventory.clear()
                 self.decide_bullet_count(game)
+                game.turn = "player"
+                     
+                self.gamestate_manager.set_state("death scene")
 
             elif game.gun_chamber.slots[0] == "blank":
-
+                print("another turn")
 
                 game.gun_chamber.rotating = True
                 game.gun_chamber.slot_states[0] = "safe"
-                game.gun_chamber.rotate_chamber()
-
-                game.turn = "enemy"       
-                self.gamestate_manager.set_state("get item") 
+                game.gun_chamber.rotate_chamber()    
 
                 #game.player.animate_textures = game.player.shoot_self_safe
 
@@ -230,6 +217,9 @@ class GameLoop:
                 
                 game.player.inventory.clear()
                 self.decide_bullet_count(game)
+                game.turn = "player"
+
+                self.gamestate_manager.set_state("death scene")
 
                 #game.enemy.animate_textures = game.enemy.shoot_textures
 
@@ -262,7 +252,7 @@ class GameLoop:
                 game.gun_chamber.rotating = True
                 game.gun_chamber.slot_states[0] = "safe"
                 game.gun_chamber.rotate_chamber()
-                game.turn = "player"
+                
 
                 #game.enemy.animate_textures = game.enemy.shoot_self_safe
 
@@ -294,14 +284,12 @@ class GameLoop:
         game.gun_chamber.new_slots(game.bullet_count)
 
     def graphics(self, game):
-        game.display.fill("dark grey")
+        game.display.fill((28, 31, 29))
 
         #Players
         game.player.render(game.display)
         game.enemy.render(game.display)
 
-        #Score
-        #self.score_surf.render(self.display)
         #Buttons
         game.shoot_button.render(game.display)
         game.shoot_self_button.render(game.display)
@@ -318,10 +306,10 @@ class GameLoop:
         if game.enemy.animating:
             game.enemy.animate()
 
-        #Items
-        if game.player.inventory:
-            for item in game.player.inventory:
-                item.render(game.display)
+        # #Items
+        # if game.player.inventory:
+        #     for item in game.player.inventory:
+        #         item.render(game.display)
 
 class GetItem:
     def __init__(self, game):
@@ -364,7 +352,30 @@ class GetItem:
 
 class DeathScene:
     def __init__(self, game):
-        self.gamestate_manager = game.gamestate_manager         
+        self.gamestate_manager = game.gamestate_manager 
+        self.game = game
+
+    def run(self, game):   
+        
+        for event in self.game.events:
+            if event.type == pygame.QUIT:
+                save_score("score/highscore.json", game.highscore)
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    print("oututututut")
+                    self.gamestate_manager.set_state("game loop")
+
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    print("oututututut")
+                    self.gamestate_manager.set_state("game loop")
+
+        #print("death")
+        self.game.game_loop.graphics(self.game)
+          
+
 
 
 if __name__ == "__main__":
