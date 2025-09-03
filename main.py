@@ -10,7 +10,7 @@ from scripts.gamestate import GameStateManager
 class Game:
     #-------------Settings-------------
     resolution = [640, 360] #16:9
-    RENDER_SCALE = 7
+    RENDER_SCALE = 5
     WIDTH = resolution[0] * 2
     HEIGHT = resolution[1] * 2 
     item_size = 16
@@ -38,12 +38,12 @@ class Game:
         
         #Entities
         entity_height = 32
-        pos = [self.display.get_width()*.3, int(self.display.get_height() - entity_height)]
-        self.player = Player("assets/player.png", pos, Game.RENDER_SCALE)
+        pos = [self.display.get_width()*.3, int(self.display.get_height() - entity_height)-10]
+        self.player = Player("assets/player.png", pos)
     
 
-        pos = [self.display.get_width()*.7, int(self.display.get_height()- entity_height)]
-        self.enemy = Enemy("assets/enemy.png", pos, Game.RENDER_SCALE)
+        pos = [self.display.get_width()*.7, int(self.display.get_height() - entity_height)-10]
+        self.enemy = Enemy("assets/enemy.png", pos)
 
         #Gun Chamber
         self.gun_chamber = GunChamber(pos=[0,0])
@@ -55,11 +55,14 @@ class Game:
         self.item_textures = load_images_as_dic("items", True, '.png')
         self.item_names = list(self.item_textures.keys())
 
+        #Timers
+        self.enemy_wait = Timer(5000)
+
     
         #-------------Game vars-------------
 
         #Score
-        self.score = 100
+        self.score = 0
         self.highscore = 0
         try:
             self.highscore = load_score("score/highscore.json")
@@ -117,11 +120,6 @@ class Game:
             self.score_surf.render(self.window)
             self.highscore_surf.render(self.window)
 
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                    if event.button == 1:
-                        pygame.draw.rect(self.window, "green", self.player.box)
-                        pygame.draw.rect(self.window, "red", self.enemy.box)
-
             
             
 
@@ -158,7 +156,7 @@ class Game:
 class GameLoop:
     def __init__(self, game):
         self.gamestate_manager = game.gamestate_manager 
-        self.enemy_turn_timer = Timer(2000)
+        self.enemy_wait = Timer(1500)
 
     def run(self, game):
 
@@ -179,18 +177,21 @@ class GameLoop:
                     #print(pygame.mouse.get_pos())
                     pass
         
-        if game.player.check_clicked(game.mpos):
-            print("clicked on player")
-        if game.enemy.check_clicked(game.mpos):
-            print("clicked on enemy")
+
         
         if game.turn == "player" and not game.gun_chamber.rotating and not game.enemy.animating:
             self.player_turn(game)
         elif game.turn == "enemy" and not game.gun_chamber.rotating and not game.player.animating:
-            self.enemy_turn(game)
+            #Wait a bit to create the illusion of the enemy deciding to make a choice
+            if not self.enemy_wait.active:
+                self.enemy_wait.activate()
+            if self.enemy_wait.if_ready():
+                self.enemy_turn(game)
+    
     
     def player_turn(self, game):
-        if game.shoot_button.check_clicked():
+        #Shooting enemy
+        if game.enemy.check_clicked(game.mpos):
             if game.gun_chamber.slots[0] == "loaded":
                 print("enemy dead")
 
@@ -207,17 +208,18 @@ class GameLoop:
             elif game.gun_chamber.slots[0] == "blank":
 
                 game.gun_chamber.rotating = True
-                game.gun_chamber.slot_states[0] = "safe"
+                game.gun_chamber.current_slot_status = "safe"
                 game.enemy.update_chamber()
-                game.gun_chamber.rotate_chamber()
+      
 
                 game.turn = "enemy"
 
+            
             game.player.animate_textures = game.player.shoot_textures
             game.player.animating = True
             
-
-        if game.shoot_self_button.check_clicked():
+        #Shooting self
+        elif game.player.check_clicked(game.mpos):
             if game.gun_chamber.slots[0] == "loaded":
                 print("your dead")
 
@@ -233,8 +235,7 @@ class GameLoop:
 
 
                 game.gun_chamber.rotating = True
-                game.gun_chamber.slot_states[0] = "safe"
-                game.gun_chamber.rotate_chamber()
+                game.gun_chamber.current_slot_status = "safe"
 
                 game.turn = "enemy"       
                 self.gamestate_manager.set_state("get item") 
@@ -264,8 +265,7 @@ class GameLoop:
                 print("enemy tried to shoot u")
 
                 game.gun_chamber.rotating = True
-                game.gun_chamber.slot_states[0] = "safe"
-                game.gun_chamber.rotate_chamber()
+                game.gun_chamber.current_slot_status = "safe"
                 game.turn = "player"
 
             game.enemy.animate_textures = game.enemy.shoot_textures
@@ -286,8 +286,7 @@ class GameLoop:
                 print("enemy tried to shoot themself")
 
                 game.gun_chamber.rotating = True
-                game.gun_chamber.slot_states[0] = "safe"
-                game.gun_chamber.rotate_chamber()
+                game.gun_chamber.current_slot_status = "safe"
                 game.turn = "player"
 
                 #game.enemy.animate_textures = game.enemy.shoot_self_safe
@@ -326,23 +325,23 @@ class GameLoop:
         game.player.render(game.display)
         game.enemy.render(game.display)
 
-        #Score
-        #self.score_surf.render(self.display)
         #Buttons
         game.shoot_button.render(game.display)
         game.shoot_self_button.render(game.display)
 
-        #Rotating animation
-        if game.gun_chamber.rotating:
-            game.gun_chamber.animate_rotate()
-        game.gun_chamber.render(game.display)
 
         #Animation
         if game.player.animating:
             game.player.animate()
 
-        if game.enemy.animating:
+        elif game.enemy.animating:
             game.enemy.animate()
+        #Rotating animation
+        elif game.gun_chamber.rotating:
+            game.gun_chamber.animate_rotate()
+
+        game.gun_chamber.render(game.display)
+
 
         #Items
         if game.player.inventory:
@@ -365,10 +364,10 @@ class GetItem:
             item.render(game.display)
             
             #Add item to user inventory and exits out state
-            if item.check_clicked():
+            if item.check_clicked(game.mpos):
                 self.gamestate_manager.set_state("game loop")
                 pos = [10, 16 * len(game.player.inventory) + (10 * len(game.player.inventory))]
-                game.player.inventory.append(Item(game.item_textures[key], pos, Game.RENDER_SCALE, key))
+                game.player.inventory.append(Item(game.item_textures[key], pos, key))
                 del self.item_choices
                 self.create_items(2, game)
                 print(game.player.inventory)
@@ -384,7 +383,7 @@ class GetItem:
 
             texture = game.item_textures[item]
             pos = [self.starting_pos[0] + (i * self.seperation) + (i *texture.get_width()), self.starting_pos[1]]
-            self.item_choices[item] = Item(texture, pos, Game.RENDER_SCALE, item)
+            self.item_choices[item] = Item(texture, pos, item)
 
 
 

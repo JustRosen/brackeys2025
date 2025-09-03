@@ -7,7 +7,7 @@ class Timer:
     def __init__(self, duration):
         self.duration = duration
         self.start_time = 0
-        self.active = True
+        self.active = False
 
     def activate(self):
         self.active = True
@@ -17,7 +17,7 @@ class Timer:
         self.active = False
         self.start_time = 0
 
-    def update(self):
+    def if_ready(self):
         if self.active:
             current_time = pygame.time.get_ticks()
             elapsed_time = current_time - self.start_time

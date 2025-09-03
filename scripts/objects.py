@@ -108,21 +108,19 @@ class RectButton():
         return action
     
 class SurfButton:
-    def __init__(self, image, pos, scale):
+    def __init__(self, image, pos):
         
         self.pos = pos
         self.surface = image.copy()
 
-        self.box = pygame.Rect(pos[0]*scale, pos[1]*scale, self.surface.get_width() * scale, self.surface.get_height() * scale)
+        self.box = pygame.Rect(pos[0], pos[1], self.surface.get_width(), self.surface.get_height())
         self.clicked = False
 
     def render(self,surface):
         surface.blit(self.surface, self.pos)
 
-    def check_clicked(self):
+    def check_clicked(self, mpos):
         action = False #Action will be returned to determine if the button was pressed or not
-
-        mpos = pygame.mouse.get_pos()
 
         if self.box.collidepoint(mpos):
             if pygame.mouse.get_pressed()[0] == 1 and not self.clicked:
@@ -135,8 +133,8 @@ class SurfButton:
         return action
     
 class Item(SurfButton):
-    def __init__(self, image, pos, scale, type):
-        super().__init__(image, pos, scale)
+    def __init__(self, image, pos, type):
+        super().__init__(image, pos)
         self.type = type
 
 
@@ -170,6 +168,8 @@ class GunChamber:
         self.rotating = False
         self.frame = 0
         self.frame_duration = 5
+
+        self.current_slot_status = "unknown"
   
     
     def new_slots(self, bullets=1):
@@ -194,7 +194,10 @@ class GunChamber:
         self.add_state_textures()
         #print("new:", self.slots)
 
-
+    def update_chamber(self):
+        if self.current_slot_status == "safe":
+            self.slot_states[0] = "safe"
+        self.rotate_chamber()
     #Graphical
 
     def add_state_textures(self):
@@ -208,16 +211,24 @@ class GunChamber:
 
     def animate_rotate(self):
         
-        self.frame = (self.frame+1) % (len(self.rotate_textures) * self.frame_duration)
+
+        #If its the last frame then end the animation
+        max_frame = (len(self.rotate_textures) * self.frame_duration)
+        #This makes sure its on the VERY last frame, i prev had it check the last "converted frame" 
+        # so basically, the last frame would only last 1 second instead of the full frame duration
+        if self.frame == max_frame - 1: 
+            self.frame = 0
+            self.rotating = False
+            self.current_texture = self.barrel_states
+            self.update_chamber()
+            return
+
+        self.frame = (self.frame+1) % max_frame
         converted_frame = self.frame // self.frame_duration
 
         self.current_texture = self.rotate_textures[converted_frame]
 
-        #If its the last frame then end the animation
-        if converted_frame == len(self.rotate_textures) - 1:
-            self.frame = 0
-            self.rotating = False
-            self.current_texture = self.barrel_states
+        
 
     def render(self, surface):
         surface.blit(self.current_texture, self.pos)
