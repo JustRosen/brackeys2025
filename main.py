@@ -25,7 +25,7 @@ class Game:
 
         #-------------Objects-------------
 
-        #Buttons
+        #Buttons #Depreciated (meaning theyre not used anymore)
         #pos = [self.display.get_width()-100,self.display.get_height() - 50] #coords are bottom right of screen
         self.shoot_button = TextButton(sysfont=True, font_path="", size=10, text= "Shoot Enemy",
                                        pos=[0,0],
@@ -324,11 +324,6 @@ class GameLoop:
         #Players
         game.player.render(game.display)
         game.enemy.render(game.display)
-
-        #Buttons
-        game.shoot_button.render(game.display)
-        game.shoot_self_button.render(game.display)
-
 
         #Animation
         if game.player.animating:
