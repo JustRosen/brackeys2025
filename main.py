@@ -231,6 +231,8 @@ class GameLoop:
                 game.player.inventory.clear()
                 self.decide_bullet_count(game)
 
+                self.gamestate_manager.set_state("death scene")
+
             elif game.gun_chamber.slots[0] == "blank":
 
 
@@ -258,6 +260,7 @@ class GameLoop:
                 game.player.inventory.clear()
                 self.decide_bullet_count(game)
 
+                self.gamestate_manager.set_state("death scene")
                 #game.enemy.animate_textures = game.enemy.shoot_textures
 
                 
@@ -384,8 +387,29 @@ class GetItem:
 
 class DeathScene:
     def __init__(self, game):
-        self.gamestate_manager = game.gamestate_manager         
+        self.gamestate_manager = game.gamestate_manager 
+        self.game = game
 
+    def run(self, game):   
+        
+        for event in self.game.events:
+            if event.type == pygame.QUIT:
+                save_score("score/highscore.json", game.highscore)
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    print("oututututut")
+                    self.gamestate_manager.set_state("game loop")
+
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    print("oututututut")
+                    self.gamestate_manager.set_state("game loop")
+
+        #print("death")
+        self.game.game_loop.graphics(self.game)
+          
 
 if __name__ == "__main__":
     game = Game()
