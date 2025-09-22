@@ -158,8 +158,11 @@ class GunChamber:
             [3,7], #Top left
         ]
 
-        self.slots = ['blank']*6
-        self.slot_states = ['unknown']*6
+        #Note: tbh the slot attri might be redundent
+        self.slots = ['blank']*6 #
+        self.slot_states = ['unknown']*6 #Knowns all the states
+        self.visible_states = ['unknown']*6 #Only shows visible states
+
         self.barrel = pygame.image.load("assets/gun_chamber.png")
         self.barrel_states = self.barrel.copy()
         self.current_texture = self.barrel_states
@@ -173,8 +176,9 @@ class GunChamber:
   
     
     def new_slots(self, bullets=1):
-        self.slots = ['blank']*6 #Resets
-        self.slot_states = ['unknown']*6
+        self.slots = ['blank']*6 
+        self.slot_states = ['unknown']*6 
+        self.visible_states = ['unknown']*6
         spots_left = [i for i in range(6)]
 
         for _ in range(bullets):
@@ -188,30 +192,32 @@ class GunChamber:
     def rotate_chamber(self):
         old_slots = self.slots.copy()
         old_states = self.slot_states.copy()
+        old_visible = self.visible_states.copy()
         for index in range(-1, len(self.slots)-1):
             self.slots[index+1] = old_slots[index]
             self.slot_states[index+1] = old_states[index]
+            self.visible_states[index+1] = old_visible[index]
         self.add_state_textures()
         #print("new:", self.slots)
 
-    def update_chamber(self):
-        if self.current_slot_status == "safe":
-            self.slot_states[0] = "safe"
-        self.rotate_chamber()
+    def update_chamber(self, rotate = True):
+        self.visible_states[0] = self.current_slot_status #Safe or unknown. It loaded then player just dies yk\
+        if rotate:
+            self.rotate_chamber()
     #Graphical
 
     def add_state_textures(self):
         self.barrel_states = self.barrel.copy()
-        for index, state in enumerate(self.slot_states):
+        for index, state in enumerate(self.visible_states): #slot_states to know everything 
             texture = self.state_textures[state]
             pos = self.slot_pos[index]
             self.barrel_states.blit(texture, pos)
 
         self.current_texture = self.barrel_states
 
+    #Note: The chamber does the rotating animation before updating to the new state
     def animate_rotate(self):
-        
-
+    
         #If its the last frame then end the animation
         max_frame = (len(self.rotate_textures) * self.frame_duration)
         #This makes sure its on the VERY last frame, i prev had it check the last "converted frame" 
@@ -227,8 +233,6 @@ class GunChamber:
         converted_frame = self.frame // self.frame_duration
 
         self.current_texture = self.rotate_textures[converted_frame]
-
-        
 
     def render(self, surface):
         surface.blit(self.current_texture, self.pos)

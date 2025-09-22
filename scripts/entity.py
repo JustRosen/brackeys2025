@@ -8,17 +8,20 @@ class Player:
         self.pos = pos.copy()
         self.og_pos = pos.copy()
 
+        #Animations
         self.shoot_textures = load_images("player shoot")
         self.shoot_self_safe = load_images("player shoot self safe")
+        self.shot_death = load_images("player death")
+
         self.with_gun_texture = self.shoot_textures[0]
-        self.outlined_texture = self.outline_surface(self.with_gun_texture, "yellow")
+        self.outlined_texture = self.outline_surface(self.with_gun_texture, "red")
 
         self.frame = 0
         self.frame_duration = 6
-        self.inventory = []
         self.animating = False
         
         self.animate_textures = None
+        self.texture_after_animation = self.base_texture
         self.current_texture = self.with_gun_texture #Current texture switches all the time
         self.is_turn = True
 
@@ -26,6 +29,11 @@ class Player:
         rect_size = [ self.base_texture.get_width(), self.base_texture.get_height()]
         self.box = pygame.Rect(rect_pos, rect_size)
 
+        #Item stuff
+        self.inventory = []
+        self.item_x_offset = 10
+        self.item_y_offset = 5
+        self.seperation = 8
 
     def animate(self):
         
@@ -34,10 +42,16 @@ class Player:
         if self.frame == max_frame - 1:
             self.frame = 0
             self.animating = False
-            self.current_texture = self.base_texture
+
+            self.current_texture = self.texture_after_animation
 
             return
-            
+        
+        #Gotta make specific pos for the death animation texture
+        elif self.frame == 0 and self.animate_textures == self.shot_death:
+                self.pos[0] = self.og_pos[0] - (self.animate_textures[0].get_width() - self.base_texture.get_width()) + 6
+                self.pos[1] = self.og_pos[1] - (self.animate_textures[0].get_height() - self.base_texture.get_height())
+
         self.frame = (self.frame+1) % (len(self.animate_textures) * self.frame_duration)
         converted_frame = self.frame // self.frame_duration
 
@@ -99,27 +113,44 @@ class Player:
     def render(self, surface):
         surface.blit(self.current_texture, self.pos)
 
+    def update_items(self):
+        for index, item in enumerate(self.inventory):
+            pos = [self.item_x_offset, (self.seperation * index) + (item.surface.get_height() * index) + self.item_y_offset]
+            item.pos = pos
+            item.box.x = pos[0] 
+            item.box.y = pos[1]
+
+
 class Enemy:
     def __init__(self, path, pos):
+
+        #Textures
         self.base_texture = pygame.image.load(path).convert_alpha()
 
         self.shoot_textures = load_images("enemy shoot")
         self.shoot_self_safe = load_images("enemy shoot self safe")
         self.with_gun_texture = self.shoot_textures[0]
-        self.outlined_texture = self.outline_surface(self.base_texture, "yellow")
-
-        self.pos = pos
-        self.og_pos = pos.copy()
+        self.outlined_texture = self.outline_surface(self.base_texture, "red")
+        self.shot_death = load_images("enemy death")
+    
+        
         self.inventory = []
 
+        #Ai related
         self.chamber_state = ["unknown"] * 6
 
+        #Animation related
         self.frame = 0
         self.frame_duration = 6
         self.animating = False
 
         self.animate_textures = None
         self.current_texture = self.base_texture
+        self.texture_after_animation = self.base_texture
+
+        #Pos related
+        self.pos = pos.copy()
+        self.og_pos = pos.copy()
 
         rect_pos = [self.pos[0], self.pos[1]]
         rect_size = [ self.base_texture.get_width(), self.base_texture.get_height()]
@@ -167,15 +198,19 @@ class Enemy:
         if self.frame == max_frame - 1:
             self.frame = 0
             self.animating = False
-            self.current_texture = self.base_texture
-
-            self.pos = self.og_pos.copy()
+            self.current_texture = self.texture_after_animation
+            
+            #Resets the pos if its not the death texture
+            if not self.texture_after_animation == self.shot_death[-1]:
+                self.pos = self.og_pos.copy()
+                
             return
-
-            #self.pos[0] = self.og_pos[0] + (self.animate_textures[0].get_width() - self.image.get_width())
+        
         elif self.frame == 0:
             self.pos[0] = self.og_pos[0] - (self.animate_textures[0].get_width() - self.base_texture.get_width())
             self.pos[1] = self.og_pos[1] - (self.animate_textures[0].get_height() - self.base_texture.get_height())
+            if self.animate_textures == self.shot_death:
+                self.pos[0] = self.og_pos[0] - 5#Specific pos for death frames
 
 
         self.frame = (self.frame+1) % max_frame
@@ -222,4 +257,4 @@ class Enemy:
         if self.chamber_state[0] == "loaded" or known_loaded >= 5:
             return "shoot player"
         elif known_loaded <= 4:
-            return random.choice(['shoot self', 'shoot self'])
+            return random.choice(['shoot player', 'shoot self'])

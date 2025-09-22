@@ -16,6 +16,17 @@ instead of scaling up rects, instead divide the mpos by the render_Scale or not 
 
 done: player outline kinda
 Fixed enemy outline and positioning
+added: death scene (simple)
 
-do a shot death animation and self death animation
-add power up code
+added: reveal
+fixed auto using every item there is
+added: rotate once
+added: power up code
+added: death anims for player and enemy
+added: implemented animation for player death
+added: implemented animation for enemy death
+Fixed: Bugs relating to gamble and positioning
+
+fix: update the state graphics after an entity dies. (its only a minor visual bug tho)
+add power up text
+add sound
