@@ -49,12 +49,17 @@ class Game:
         self.gun_chamber = GunChamber(pos=[0,0])
         self.gun_chamber.pos = [self.display.get_width()//2 - self.gun_chamber.barrel.get_width()//2 ,10//Game.RENDER_SCALE]
         self.gun_chamber.new_slots(random.randint(1,1))
-
+        
 
         #Items
         self.item_textures = load_images_as_dic("items", True, '.png')
         self.item_names = list(self.item_textures.keys())
-
+        self.item_func_reference = {
+            "reveal": reveal,
+            "gamble": gamble,
+            "rotate": rotate,
+            "skip": skip,
+        }
         #Timers
         self.enemy_wait = Timer(5000)
 
@@ -80,8 +85,15 @@ class Game:
                                    pos=[0,0])
         self.highscore_surf.pos = [self.window.get_width()-self.highscore_surf.surface.get_width(),self.highscore_surf.surface.get_height()]
 
+        self.death_text = TextSurf(sysfont=False, font_path= "fonts/yoster.ttf", size=40,
+                                   text="You have died!", text_color="red", 
+                                   pos= [0,0])
+        self.death_text.pos = self.set_death_text_pos()
+
+
         #Vars
         self.turn = "player"
+        self.who_is_dead = None
 
 
         #Game states
@@ -107,11 +119,13 @@ class Game:
                     save_score("score/highscore.json", self.highscore)
                     pygame.quit()
                     sys.exit()
+                self.states[self.gamestate_manager.get_state()].handle_events(game=self, event=event)
 
                 # if event.type == pygame.MOUSEBUTTONDOWN:
                 #     if event.button == 1:
                 #         pygame.draw.rect(self.window, "green", self.player.box)
                 #         pygame.draw.rect(self.window, "red", self.enemy.box)
+
             self.states[self.gamestate_manager.get_state()].run(self)
 
             self.window.blit(pygame.transform.scale(self.display, self.window.get_size()), (0,0))
@@ -119,18 +133,10 @@ class Game:
             #Post display graphics
             self.score_surf.render(self.window)
             self.highscore_surf.render(self.window)
+            if self.gamestate_manager.get_state() == "death scene" and not self.player.animating and not self.enemy.animating:
+                self.death_text.render(self.window)
 
             
-            
-
-            #Testing how items would look
-            # for i in range(4):
-            #     if i % 2:
-            #         color = "black"
-            #     else:
-            #         color = "yellow"
-            #     pygame.draw.rect(self.window, color, [[0,i*16*Game.RENDER_SCALE], [16*Game.RENDER_SCALE,16*Game.RENDER_SCALE]], border_radius= 10)
-
             pygame.display.update()
             self.clock.tick(60)
         
@@ -145,65 +151,71 @@ class Game:
         self.highscore_surf.change_text(f"Highscore: {self.highscore}", "black")
         self.highscore_surf.pos = [self.window.get_width()-self.highscore_surf.surface.get_width(),self.highscore_surf.surface.get_height()]
 
-
     def mouse_pos_in_display(self):
         mx, my = pygame.mouse.get_pos()
         sx = self.window.get_width()  / self.display.get_width()
         sy = self.window.get_height() / self.display.get_height()
         return [int(mx / sx), int(my / sy)]
 
-
+    def set_death_text_pos(self):
+        return [self.window.get_width()//2 - self.death_text.surface.get_width()//2,self.window.get_width()* .2]
 class GameLoop:
     def __init__(self, game):
         self.gamestate_manager = game.gamestate_manager 
         self.enemy_wait = Timer(1500)
 
+        self.item_cooldown = Timer(500)
+        self.item_cooldown.activate() #Pre readies button
+
+
     def run(self, game):
-
-        self.inputs(game)
-        self.graphics(game)
-
-    def inputs(self, game):
-        for event in game.events:
-            if event.type == pygame.QUIT:
-                save_score("score/highscore.json", game.highscore)
-                pygame.quit()
-                sys.exit()
-            
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                if event.button == 1: #Left click
-                    pass
-                    #print("y", self.shoot_self_button.hitbox.y)
-                    #print(pygame.mouse.get_pos())
-                    pass
         
-
-        
+        #Turns
         if game.turn == "player" and not game.gun_chamber.rotating and not game.enemy.animating:
             self.player_turn(game)
+        #game.turn = "player"
         elif game.turn == "enemy" and not game.gun_chamber.rotating and not game.player.animating:
             #Wait a bit to create the illusion of the enemy deciding to make a choice
             if not self.enemy_wait.active:
+                print("activated enemy timer")
                 self.enemy_wait.activate()
+
             if self.enemy_wait.if_ready():
+                print("ready for enemy tunr")
                 self.enemy_turn(game)
-    
+
+        #Item use
+        if game.turn == "player" and not game.enemy.animating:
+            for item in game.player.inventory:
+                if item.check_clicked(game.mpos) and self.item_cooldown.if_ready():
+                    self.item_cooldown.activate()
+                    print("used")
+                    game.item_func_reference[item.type](game) #Call item function
+                    game.player.inventory.remove(item)
+                    game.player.update_items()
+                    break
+        
+        self.graphics(game)
+
+    def handle_events(self, game, event):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == 1: #Left click
+                #print(game.gun_chamber.current_slot_status)
+                #print("y", self.shoot_self_button.hitbox.y)
+                #print(pygame.mouse.get_pos())
+                pass  
     
     def player_turn(self, game):
         #Shooting enemy
         if game.enemy.check_clicked(game.mpos):
             if game.gun_chamber.slots[0] == "loaded":
                 print("enemy dead")
-
-
-                game.score += 1
-                game.update_score()
-                game.update_highscore()
                 
-                game.player.inventory.clear()
-                self.decide_bullet_count(game)
-
-                #game.player.animate_textures = game.player.shoot_textures
+                game.who_is_dead = "enemy"
+                game.death_scene.dead_entity = game.enemy
+                game.death_text.change_text("You have killed the enemy..", "red")
+                game.death_text.pos = game.set_death_text_pos()
+                game.gamestate_manager.set_state("death scene")
 
             elif game.gun_chamber.slots[0] == "blank":
 
@@ -223,14 +235,11 @@ class GameLoop:
             if game.gun_chamber.slots[0] == "loaded":
                 print("your dead")
 
-                game.update_highscore()
-     
-                game.score = 0
-                game.update_score()
-                
-                game.player.inventory.clear()
-                self.decide_bullet_count(game)
-
+                game.gun_chamber.current_slot_status = "loaded"
+                game.who_is_dead = "player"
+                game.death_scene.dead_entity = game.player
+                game.death_text.change_text("You are dead!", "red")
+                game.death_text.pos = game.set_death_text_pos()
                 self.gamestate_manager.set_state("death scene")
 
             elif game.gun_chamber.slots[0] == "blank":
@@ -238,6 +247,7 @@ class GameLoop:
 
                 game.gun_chamber.rotating = True
                 game.gun_chamber.current_slot_status = "safe"
+                game.enemy.update_chamber()
 
                 game.turn = "enemy"       
                 self.gamestate_manager.set_state("get item") 
@@ -253,13 +263,13 @@ class GameLoop:
             if game.gun_chamber.slots[0] == "loaded":
                 print("enemy has shot u")
 
-                game.update_highscore()
-                game.score = 0
-                game.update_score()
                 
-                game.player.inventory.clear()
-                self.decide_bullet_count(game)
-
+                game.gun_chamber.current_slot_status = "loaded"
+                
+                game.who_is_dead = "player"
+                game.death_scene.dead_entity = game.player
+                game.death_text.change_text("You are dead!", "red")
+                game.death_text.pos = game.set_death_text_pos()
                 self.gamestate_manager.set_state("death scene")
                 #game.enemy.animate_textures = game.enemy.shoot_textures
 
@@ -269,6 +279,7 @@ class GameLoop:
 
                 game.gun_chamber.rotating = True
                 game.gun_chamber.current_slot_status = "safe"
+                game.enemy.update_chamber()
                 game.turn = "player"
 
             game.enemy.animate_textures = game.enemy.shoot_textures
@@ -278,21 +289,22 @@ class GameLoop:
             if game.gun_chamber.slots[0] == "loaded":
                 print("enemy has shot themself to death")
                 
-                game.score += 1
-                game.update_score()
-                game.update_highscore()
 
-                game.player.inventory.clear()
-                self.decide_bullet_count(game)
-                game.turn = "player"
+                game.who_is_dead = "enemy"
+                game.death_scene.dead_entity = game.enemy
+                game.death_text.change_text("You have killed the enemy..", "red")
+                game.death_text.pos = game.set_death_text_pos()
+                self.gamestate_manager.set_state("death scene")
+
             else:
                 print("enemy tried to shoot themself")
 
                 game.gun_chamber.rotating = True
                 game.gun_chamber.current_slot_status = "safe"
+                game.enemy.update_chamber()
                 game.turn = "player"
 
-                #game.enemy.animate_textures = game.enemy.shoot_self_safe
+            
 
             game.enemy.animate_textures = game.enemy.shoot_self_safe
             game.enemy.animating = True
@@ -319,7 +331,7 @@ class GameLoop:
             maxn = 2
 
         game.bullet_count = random.randint(minn, maxn)
-        game.gun_chamber.new_slots(game.bullet_count)
+        game.gun_chamber.new_slots(1)
 
     def graphics(self, game):
         game.display.fill("dark grey")
@@ -334,6 +346,7 @@ class GameLoop:
 
         elif game.enemy.animating:
             game.enemy.animate()
+
         #Rotating animation
         elif game.gun_chamber.rotating:
             game.gun_chamber.animate_rotate()
@@ -342,33 +355,43 @@ class GameLoop:
 
 
         #Items
-        if game.player.inventory:
-            for item in game.player.inventory:
-                item.render(game.display)
+        for item in game.player.inventory:
+            item.render(game.display)
 
 class GetItem:
     def __init__(self, game):
         self.gamestate_manager = game.gamestate_manager 
-
+        self.game = game
         
         self.starting_pos = [game.display.get_width()*.5 - (Game.item_size*1.5), (16 * 2.2)]
         self.seperation = 16
         self.create_items(2, game)
+    
+
+    def handle_events(self,game, event):
+        pass
 
     def run(self, game):
         game.game_loop.graphics(game)
 
+        if not self.game.player.animating and not self.game.enemy.animating:
+            self.show_items()
+
+    def show_items(self):
         for key, item in self.item_choices.items():
-            item.render(game.display)
+            item.render(self.game.display)
             
             #Add item to user inventory and exits out state
-            if item.check_clicked(game.mpos):
+            if item.check_clicked(self.game.mpos):
                 self.gamestate_manager.set_state("game loop")
-                pos = [10, 16 * len(game.player.inventory) + (10 * len(game.player.inventory))]
-                game.player.inventory.append(Item(game.item_textures[key], pos, key))
+                pos = [10, 16 * len(self.game.player.inventory) + (10 * len(self.game.player.inventory))]
+                self.game.player.inventory.append(Item(self.game.item_textures[key], pos, key))
+                self.game.player.update_items()
+
+                #Add new itmes
                 del self.item_choices
-                self.create_items(2, game)
-                print(game.player.inventory)
+                self.create_items(2, self.game)
+                
                 return
     
 
@@ -383,33 +406,67 @@ class GetItem:
             pos = [self.starting_pos[0] + (i * self.seperation) + (i *texture.get_width()), self.starting_pos[1]]
             self.item_choices[item] = Item(texture, pos, item)
 
-
-
 class DeathScene:
     def __init__(self, game):
         self.gamestate_manager = game.gamestate_manager 
         self.game = game
+        self.dead_entity = None
+
+
+    def handle_events(self, game, event):
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_SPACE:
+                self.exit_death()
+                
+
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == 1:
+                self.exit_death()
+                
 
     def run(self, game):   
-        
-        for event in self.game.events:
-            if event.type == pygame.QUIT:
-                save_score("score/highscore.json", game.highscore)
-                pygame.quit()
-                sys.exit()
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE:
-                    print("oututututut")
-                    self.gamestate_manager.set_state("game loop")
-
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                if event.button == 1:
-                    print("oututututut")
-                    self.gamestate_manager.set_state("game loop")
-
+            
         #print("death")
         self.game.game_loop.graphics(self.game)
-          
+
+        #Does the death animation when the previous animation is done
+        play_death = (not self.dead_entity.animate_textures == self.dead_entity.shot_death 
+                    and not self.game.player.animating and not self.game.enemy.animating)
+        if play_death:
+            self.dead_entity.animate_textures = self.dead_entity.shot_death
+            self.dead_entity.animating = True
+            self.dead_entity.texture_after_animation = self.dead_entity.shot_death[-1]
+    
+    def exit_death(self):
+        #When animation is done exit death scree
+        if not self.game.player.animating and not self.game.enemy.animating:
+            
+
+            if self.game.who_is_dead == "player":
+                #Resets Game var
+                self.game.score = 0
+
+            elif self.game.who_is_dead == "enemy":
+                self.game.score += 1
+                
+
+            #Reset Game Vars
+            self.game.game_loop.decide_bullet_count(self.game)
+            self.game.turn = "player"
+            self.game.update_score()
+            self.game.update_highscore()
+
+            #Reset entity var
+            self.dead_entity.texture_after_animation = self.dead_entity.base_texture
+            self.dead_entity.animate_textures = None
+            self.dead_entity.current_texture = self.dead_entity.base_texture
+            self.dead_entity.pos = self.dead_entity.og_pos.copy()
+
+            #Player specific
+            self.game.player.inventory.clear()
+
+            self.gamestate_manager.set_state("game loop")
+
 
 if __name__ == "__main__":
     game = Game()
