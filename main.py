@@ -1,8 +1,8 @@
-import pygame, asyncio, sys, json, random
+import pygame, asyncio, sys, json, random, pprint
 
 
 from scripts.utility import save_score, load_score, load_images_as_dic, Timer
-from scripts.objects import RectButton, TextButton, GunChamber, TextSurf, SurfButton, Item
+from scripts.objects import RectButton, TextButton, GunChamber, TextSurf, SurfButton, Item, ItemDescription
 from scripts.entity import Player, Enemy
 from scripts.items import skip, reveal, rotate, gamble
 from scripts.gamestate import GameStateManager
@@ -60,10 +60,33 @@ class Game:
             "rotate": rotate,
             "skip": skip,
         }
+
+        #Item descriptions
+        with open("description/item_descriptions.json", 'r') as file:
+            self.item_descriptions = json.load(file)
+
+        pprint.pprint(self.item_descriptions)
+        self.descriptions_surf = {
+            'reveal': ItemDescription(sysfont=False, font_path= "fonts/yoster.ttf", size=15,
+                               text= self.item_descriptions['reveal'], text_color="black", pos=[0,0]),
+            'gamble': ItemDescription(sysfont=False, font_path= "fonts/yoster.ttf", size=15,
+                               text= self.item_descriptions['gamble'], text_color="black", pos=[0,50]),
+            'rotate': ItemDescription(sysfont=False, font_path= "fonts/yoster.ttf", size=15,
+                               text= self.item_descriptions['rotate'], text_color="black", pos=[0,100]),
+            'skip': ItemDescription(sysfont=False, font_path= "fonts/yoster.ttf", size=15,
+                               text= self.item_descriptions['skip'], text_color="black", pos=[0,200]),
+        }
+
         #Timers
         self.enemy_wait = Timer(5000)
+        
+        #-------------Sounds-------------
 
-    
+        #Background music
+        pygame.mixer.music.load("sounds/eerie music.ogg")
+        pygame.mixer.music.set_volume(0)
+        pygame.mixer.music.play(-1)
+
         #-------------Game vars-------------
 
         #Score
@@ -94,7 +117,7 @@ class Game:
         #Vars
         self.turn = "player"
         self.who_is_dead = None
-
+        self.hover_status = {"is hovering": False, "type": None, "in inventory": None, "pos rect": None}
 
         #Game states
         self.gamestate_manager = GameStateManager("game loop")
@@ -126,15 +149,39 @@ class Game:
                 #         pygame.draw.rect(self.window, "green", self.player.box)
                 #         pygame.draw.rect(self.window, "red", self.enemy.box)
 
+
             self.states[self.gamestate_manager.get_state()].run(self)
 
             self.window.blit(pygame.transform.scale(self.display, self.window.get_size()), (0,0))
 
             #Post display graphics
+
+            #Score
             self.score_surf.render(self.window)
             self.highscore_surf.render(self.window)
+
+            #Death text
             if self.gamestate_manager.get_state() == "death scene" and not self.player.animating and not self.enemy.animating:
                 self.death_text.render(self.window)
+
+            #Item description
+            if self.hover_status["is hovering"]:
+
+                description = self.descriptions_surf[self.hover_status['type']]
+                item_pos = self.hover_status['pos rect']
+                if self.hover_status["in inventory"]:
+                    #Positions to right of item
+                    #Do not do this in the future, find a way to make fonts look better when scaled instead of using the window
+                    description.bg_rect.x = (item_pos.right + 5) * Game.RENDER_SCALE 
+                    description.bg_rect.centery = item_pos.centery * Game.RENDER_SCALE
+                    
+                elif not self.hover_status["in inventory"]:
+                    #Positions at the bottom of item
+                    description.bg_rect.centerx = item_pos.centerx * Game.RENDER_SCALE 
+                    description.bg_rect.y = (item_pos.bottom + 5) * Game.RENDER_SCALE 
+
+                description.center_text_to_bg()
+                description.render(self.window)
 
             
             pygame.display.update()
@@ -159,6 +206,7 @@ class Game:
 
     def set_death_text_pos(self):
         return [self.window.get_width()//2 - self.death_text.surface.get_width()//2,self.window.get_width()* .2]
+    
 class GameLoop:
     def __init__(self, game):
         self.gamestate_manager = game.gamestate_manager 
@@ -173,21 +221,21 @@ class GameLoop:
         #Turns
         if game.turn == "player" and not game.gun_chamber.rotating and not game.enemy.animating:
             self.player_turn(game)
-        #game.turn = "player"
-        elif game.turn == "enemy" and not game.gun_chamber.rotating and not game.player.animating:
-            #Wait a bit to create the illusion of the enemy deciding to make a choice
-            if not self.enemy_wait.active:
-                print("activated enemy timer")
-                self.enemy_wait.activate()
+        game.turn = "player"
+        # elif game.turn == "enemy" and not game.gun_chamber.rotating and not game.player.animating:
+        #     #Wait a bit to create the illusion of the enemy deciding to make a choice
+        #     if not self.enemy_wait.active:
+        #         print("activated enemy timer")
+        #         self.enemy_wait.activate()
 
-            if self.enemy_wait.if_ready():
-                print("ready for enemy tunr")
-                self.enemy_turn(game)
+        #     if self.enemy_wait.if_ready():
+        #         print("ready for enemy tunr")
+        #         self.enemy_turn(game)
 
         #Item use
         if game.turn == "player" and not game.enemy.animating:
             for item in game.player.inventory:
-                if item.check_clicked(game.mpos) and self.item_cooldown.if_ready():
+                if item.check_clicked(game.mpos, game.hover_status) and self.item_cooldown.if_ready():
                     self.item_cooldown.activate()
                     print("used")
                     game.item_func_reference[item.type](game) #Call item function
@@ -292,7 +340,7 @@ class GameLoop:
 
                 game.who_is_dead = "enemy"
                 game.death_scene.dead_entity = game.enemy
-                game.death_text.change_text("You have killed the enemy..", "red")
+                game.death_text.change_text("The enemy is dead..", "red")
                 game.death_text.pos = game.set_death_text_pos()
                 self.gamestate_manager.set_state("death scene")
 
@@ -382,7 +430,7 @@ class GetItem:
             item.render(self.game.display)
             
             #Add item to user inventory and exits out state
-            if item.check_clicked(self.game.mpos):
+            if item.check_clicked(self.game.mpos, self.game.hover_status):
                 self.gamestate_manager.set_state("game loop")
                 pos = [10, 16 * len(self.game.player.inventory) + (10 * len(self.game.player.inventory))]
                 self.game.player.inventory.append(Item(self.game.item_textures[key], pos, key))
@@ -404,7 +452,7 @@ class GetItem:
 
             texture = game.item_textures[item]
             pos = [self.starting_pos[0] + (i * self.seperation) + (i *texture.get_width()), self.starting_pos[1]]
-            self.item_choices[item] = Item(texture, pos, item)
+            self.item_choices[item] = Item(texture, pos, item, False)
 
 class DeathScene:
     def __init__(self, game):

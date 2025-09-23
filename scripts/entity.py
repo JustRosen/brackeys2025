@@ -257,4 +257,4 @@ class Enemy:
         if self.chamber_state[0] == "loaded" or known_loaded >= 5:
             return "shoot player"
         elif known_loaded <= 4:
-            return random.choice(['shoot player', 'shoot self'])
+            return random.choice(['shoot self', 'shoot self'])

@@ -131,12 +131,60 @@ class SurfButton:
             self.clicked = False
 
         return action
+
+class ItemDescription(TextSurf):
+    def __init__(self, sysfont, font_path, size, text, text_color, pos):
+        super().__init__(sysfont, font_path, size, text, text_color, pos)
+        
+        #Background box/rect
+        width_extention = 70
+        height_extention = 20
+        width = self.surface.get_width() + width_extention
+        height = self.surface.get_height() + height_extention
+
+        self.bg_rect = pygame.Rect(self.pos[0],self.pos[1], width, height) 
+
+        self.center_text_to_bg()
+
+    def render(self, surface):
+        pygame.draw.rect(surface, "White", self.bg_rect, border_radius=10)
+        super().render(surface)
     
+    def center_text_to_bg(self):
+        self.pos[0] = self.bg_rect.centerx - self.surface.get_width()//2    
+        self.pos[1] = self.bg_rect.centery - self.surface.get_height()//2  
+
 class Item(SurfButton):
-    def __init__(self, image, pos, type):
+    def __init__(self, image, pos, type, in_inventory= True):
         super().__init__(image, pos)
         self.type = type
+        self.in_inventory = in_inventory
 
+    def check_clicked(self, mpos, hover_status):
+        action = False #Action will be returned to determine if the button was pressed or not
+
+        if self.box.collidepoint(mpos):
+           
+            if not hover_status["is hovering"]:
+                #If u create asign new dict instead of using update, that variable doesnt pertain the previous real/main dict
+                #Using update keeps the same dict
+                hover_status.update({"is hovering": True, "type": self.type, "in inventory": self.in_inventory, "pos rect": self.box})
+
+            if pygame.mouse.get_pressed()[0] == 1 and not self.clicked:
+                if hover_status["is hovering"] and hover_status['pos rect'] == self.box:
+                    hover_status.update({'is hovering': False})
+
+                self.clicked = True
+                action = True
+        else:
+            #Stops hovering when its away from the item it was hovering at
+            if hover_status["is hovering"] and hover_status['pos rect'] == self.box:
+                hover_status.update({'is hovering': False})
+
+        if not pygame.mouse.get_pressed()[0]: #if it returns a 0 it means false
+            self.clicked = False
+
+        return action
 
 class GunChamber:
     def __init__(self, pos):
