@@ -196,6 +196,13 @@ class GunChamber:
 
         self.rotate_textures = load_images("rotate")
 
+
+        self.barrel = pygame.image.load("assets/gun_chamber.png")
+        self.barrel_states = self.barrel.copy()
+        self.current_texture = self.barrel_states
+
+        #Position related
+
         #The first slot is the top most and the next ones are in clockwise order
         self.slot_pos = [
             [12,2], #Top most
@@ -205,25 +212,29 @@ class GunChamber:
             [3,16], #Bot left
             [3,7], #Top left
         ]
+        self.pos = pos
 
+        #States
         #Note: tbh the slot attri might be redundent
         self.slots = ['blank']*6 #
         self.slot_states = ['unknown']*6 #Knowns all the states
         self.visible_states = ['unknown']*6 #Only shows visible states
+        self.current_slot_status = "unknown"
 
-        self.barrel = pygame.image.load("assets/gun_chamber.png")
-        self.barrel_states = self.barrel.copy()
-        self.current_texture = self.barrel_states
-        self.pos = pos
-
+        #Animation related
         self.rotating = False
         self.frame = 0
         self.frame_duration = 5
 
-        self.current_slot_status = "unknown"
-  
+        #Vars
+        self.total_loaded = 0
+
+        #Sound
+        self.rotate_sound = pygame.mixer.Sound("sounds/rotate_sound.wav")
+        self.rotate_sound.set_volume(.4)
     
     def new_slots(self, bullets=1):
+        self.total_loaded = bullets
         self.slots = ['blank']*6 
         self.slot_states = ['unknown']*6 
         self.visible_states = ['unknown']*6
@@ -265,7 +276,9 @@ class GunChamber:
 
     #Note: The chamber does the rotating animation before updating to the new state
     def animate_rotate(self):
-    
+        
+        if self.frame == self.frame_duration:
+            self.rotate_sound.play()
         #If its the last frame then end the animation
         max_frame = (len(self.rotate_textures) * self.frame_duration)
         #This makes sure its on the VERY last frame, i prev had it check the last "converted frame" 
@@ -297,4 +310,26 @@ class GunChamber:
             pygame.draw.rect(surface, color, pygame.Rect(pos, [40,40]))
         
 
+class Floor:
+    def __init__(self, tilesize, dimensions, position):
+        
+        self.texture = pygame.image.load("assets/background/floor.png").convert_alpha()
+
+        self.surface = pygame.Surface((tilesize[0] * dimensions[0], tilesize[1] * dimensions[1]))
+        self.tilesize = tilesize
+        self.length = dimensions[0]
+        self.height = dimensions[1]
+        self.pos = position
+
+        self.fill_in_tiles()
+
+    def fill_in_tiles(self):
+        
+        for y in range(self.height):
+            for x in range(self.length):
+                self.surface.blit(self.texture, (x*self.tilesize[0], y * self.tilesize[1]))
+
+    def render(self, surface):
+        surface.blit(self.surface, self.pos)
+        
     

@@ -10,7 +10,8 @@ class Player:
 
         #Animations
         self.shoot_textures = load_images("player shoot")
-        self.shoot_self_safe = load_images("player shoot self safe")
+        self.blank_shot_textures = load_images("player blank shot")
+        self.shoot_self = load_images("player shoot self safe")
         self.shot_death = load_images("player death")
 
         self.with_gun_texture = self.shoot_textures[0]
@@ -35,6 +36,7 @@ class Player:
         self.item_y_offset = 5
         self.seperation = 8
 
+
     def animate(self):
         
         #Very Last frame check
@@ -52,16 +54,18 @@ class Player:
                 self.pos[0] = self.og_pos[0] - (self.animate_textures[0].get_width() - self.base_texture.get_width()) + 6
                 self.pos[1] = self.og_pos[1] - (self.animate_textures[0].get_height() - self.base_texture.get_height())
 
+
         self.frame = (self.frame+1) % (len(self.animate_textures) * self.frame_duration)
         converted_frame = self.frame // self.frame_duration
 
         self.current_texture = self.animate_textures[converted_frame]
+        
 
     def check_clicked(self, mpos):
         action = False #Action will be returned to determine if the button was pressed or not
 
         if self.box.collidepoint(mpos):
-            if not self.current_texture == self.outlined_texture:
+            if not self.current_texture == self.outlined_texture and not self.animating:
                 self.current_texture = self.outlined_texture
                 #Ok so the outline is only 1 pixel big so im just gunna subtract it
                 #I cant use the change texture function because the with gun texture actually has transparent pixel so that increases its width
@@ -128,7 +132,8 @@ class Enemy:
         self.base_texture = pygame.image.load(path).convert_alpha()
 
         self.shoot_textures = load_images("enemy shoot")
-        self.shoot_self_safe = load_images("enemy shoot self safe")
+        self.blank_shot_textures = load_images("enemy blank shot")
+        self.shoot_self= load_images("enemy shoot self safe")
         self.with_gun_texture = self.shoot_textures[0]
         self.outlined_texture = self.outline_surface(self.base_texture, "red")
         self.shot_death = load_images("enemy death")
@@ -144,7 +149,7 @@ class Enemy:
         self.frame_duration = 6
         self.animating = False
 
-        self.animate_textures = None
+        self.animate_textures = [self.base_texture] #To prevent a weird bug
         self.current_texture = self.base_texture
         self.texture_after_animation = self.base_texture
 
@@ -196,14 +201,8 @@ class Enemy:
         #If its the last frame then end the animation
         max_frame = (len(self.animate_textures) * self.frame_duration)
         if self.frame == max_frame - 1:
-            self.frame = 0
-            self.animating = False
-            self.current_texture = self.texture_after_animation
-            
-            #Resets the pos if its not the death texture
-            if not self.texture_after_animation == self.shot_death[-1]:
-                self.pos = self.og_pos.copy()
-                
+            self.reset_animation()
+
             return
         
         elif self.frame == 0:
@@ -211,13 +210,21 @@ class Enemy:
             self.pos[1] = self.og_pos[1] - (self.animate_textures[0].get_height() - self.base_texture.get_height())
             if self.animate_textures == self.shot_death:
                 self.pos[0] = self.og_pos[0] - 5#Specific pos for death frames
-
+        
 
         self.frame = (self.frame+1) % max_frame
         converted_frame = self.frame // self.frame_duration
 
         self.current_texture = self.animate_textures[converted_frame]
      
+    def reset_animation(self):
+        self.frame = 0
+        self.animating = False
+        self.current_texture = self.texture_after_animation
+        
+        #Resets the pos if its not the death texture
+        if not self.texture_after_animation == self.shot_death[-1]:
+            self.pos = self.og_pos.copy()
         
     def outline_surface(self, surface, color = 'black', outline_only = False):
         
@@ -257,4 +264,4 @@ class Enemy:
         if self.chamber_state[0] == "loaded" or known_loaded >= 5:
             return "shoot player"
         elif known_loaded <= 4:
-            return random.choice(['shoot self', 'shoot self'])
+            return random.choice(['shoot self', 'shoot player'])
