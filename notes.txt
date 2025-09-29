@@ -29,10 +29,14 @@ Fixed: Bugs relating to gamble and positioning
 added: background music (thats eerie)
 Added: Item description when hovering on them
 Note: Do not mix using the display and window> Find a way to make fonts look good when it gets scaled up on the display
-
-fix: update the state graphics after an entity dies. (its only a minor visual bug tho)
-add power up text
-add sound
-make it so you cant get items when its visible that the spot if safe, either that create a new chamber when all or most slots are visible
-add text saying how much bullets there are in the chamber
-
+Added: Total loaded slots text
+Added: Rotating sound
+Added: Gun shot sound
+Added: death scene music (eerie static if ykyk)
+Added: Gun click (for blanks) (although rn th the rotating sound over rides the sound)
+Added: Entites now wait a lil before pulling the trigger. (coded that effect with timers and frame/animation stopping)
+Added: Sync shotting with death animation to play at same time
+Added: Background Art
+Added: Only unknown slots give items
+Fixed: Chamber visuals will update after death to show the loaded slot
+Added: Game Icon

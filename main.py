@@ -2,7 +2,7 @@ import pygame, asyncio, sys, json, random, pprint
 
 
 from scripts.utility import save_score, load_score, load_images_as_dic, Timer
-from scripts.objects import RectButton, TextButton, GunChamber, TextSurf, SurfButton, Item, ItemDescription
+from scripts.objects import RectButton, TextButton, GunChamber, TextSurf, SurfButton, Item, ItemDescription, Floor
 from scripts.entity import Player, Enemy
 from scripts.items import skip, reveal, rotate, gamble
 from scripts.gamestate import GameStateManager
@@ -18,9 +18,11 @@ class Game:
     def __init__(self):
         #-------------Settings-------------
         pygame.init()
+
+        pygame.display.set_caption("6 Round Bluff")
+        pygame.display.set_icon(pygame.image.load("assets/game icon.png"))
         self.window = pygame.display.set_mode((Game.WIDTH, Game.HEIGHT))
         self.display = pygame.Surface((Game.WIDTH//Game.RENDER_SCALE, Game.HEIGHT//Game.RENDER_SCALE))
-        pygame.display.set_caption("6 Round Bluff")
         self.clock = pygame.Clock()
 
         #-------------Objects-------------
@@ -38,11 +40,13 @@ class Game:
         
         #Entities
         entity_height = 32
-        pos = [self.display.get_width()*.3, int(self.display.get_height() - entity_height)-10]
+        entity_width = 11
+        tilesize = 16
+        pos = [tilesize * 5, (tilesize*8) - entity_height]
         self.player = Player("assets/player.png", pos)
     
-
-        pos = [self.display.get_width()*.7, int(self.display.get_height() - entity_height)-10]
+        #Its 16 - entity_width = 5
+        pos = [tilesize * 10 + (16 - entity_width), (16*8) - entity_height]
         self.enemy = Enemy("assets/enemy.png", pos)
 
         #Gun Chamber
@@ -65,7 +69,6 @@ class Game:
         with open("description/item_descriptions.json", 'r') as file:
             self.item_descriptions = json.load(file)
 
-        pprint.pprint(self.item_descriptions)
         self.descriptions_surf = {
             'reveal': ItemDescription(sysfont=False, font_path= "fonts/yoster.ttf", size=15,
                                text= self.item_descriptions['reveal'], text_color="black", pos=[0,0]),
@@ -77,15 +80,31 @@ class Game:
                                text= self.item_descriptions['skip'], text_color="black", pos=[0,200]),
         }
 
-        #Timers
-        self.enemy_wait = Timer(5000)
+        #Loaded text
+        #Position is right of the chamber 
+        loaded_pos = [Game.WIDTH//2 + (self.gun_chamber.barrel.get_width()//2 * Game.RENDER_SCALE) + 10, self.gun_chamber.barrel.get_height()//2 * Game.RENDER_SCALE]
+        self.total_loaded_text = TextSurf(sysfont=False, font_path= "fonts/yoster.ttf", size=25, 
+                                          text= f"{self.gun_chamber.total_loaded} bullets", text_color="black", pos=loaded_pos)
+        
+        #Floor
+        #16 * 8 = tilesize * tilecord
+        self.floor = Floor((16,16), (16,1), (0,16*8))
+        self.background = pygame.image.load("assets/background/background.png").convert_alpha()
+
         
         #-------------Sounds-------------
 
         #Background music
         pygame.mixer.music.load("sounds/eerie music.ogg")
-        pygame.mixer.music.set_volume(0)
+        pygame.mixer.music.set_volume(0.5)
         pygame.mixer.music.play(-1)
+
+        self.gun_shot = pygame.mixer.Sound("sounds/shot_sound.wav")
+        self.gun_click = pygame.mixer.Sound("sounds/revolver click.wav")
+
+        self.eerie_static = pygame.mixer.Sound("sounds/eerie static.wav")
+        self.eerie_static.set_volume(.6)
+
 
         #-------------Game vars-------------
 
@@ -107,9 +126,10 @@ class Game:
                                    text= f"Highscore: {self.highscore}", text_color="black",
                                    pos=[0,0])
         self.highscore_surf.pos = [self.window.get_width()-self.highscore_surf.surface.get_width(),self.highscore_surf.surface.get_height()]
-
+        
+        self.death_txt_color = (217, 13, 13)
         self.death_text = TextSurf(sysfont=False, font_path= "fonts/yoster.ttf", size=40,
-                                   text="You have died!", text_color="red", 
+                                   text="You have died!", text_color= self.death_txt_color, 
                                    pos= [0,0])
         self.death_text.pos = self.set_death_text_pos()
 
@@ -133,7 +153,7 @@ class Game:
 
         while True:
             await asyncio.sleep(0)
-
+            
             self.mpos = self.mouse_pos_in_display()
 
             self.events = pygame.event.get()
@@ -143,12 +163,6 @@ class Game:
                     pygame.quit()
                     sys.exit()
                 self.states[self.gamestate_manager.get_state()].handle_events(game=self, event=event)
-
-                # if event.type == pygame.MOUSEBUTTONDOWN:
-                #     if event.button == 1:
-                #         pygame.draw.rect(self.window, "green", self.player.box)
-                #         pygame.draw.rect(self.window, "red", self.enemy.box)
-
 
             self.states[self.gamestate_manager.get_state()].run(self)
 
@@ -183,6 +197,8 @@ class Game:
                 description.center_text_to_bg()
                 description.render(self.window)
 
+            #Amount of loaded bullets
+            self.total_loaded_text.render(self.window)
             
             pygame.display.update()
             self.clock.tick(60)
@@ -210,34 +226,47 @@ class Game:
 class GameLoop:
     def __init__(self, game):
         self.gamestate_manager = game.gamestate_manager 
-        self.enemy_wait = Timer(1500)
+        self.enemy_wait = Timer(2000)
 
         self.item_cooldown = Timer(500)
         self.item_cooldown.activate() #Pre readies button
 
+        #For dramatic effect of waiting a bit before pulling the trigger
+        self.trigger_min = 1000
+        self.trigger_max = 2000
+        self.trigger_wait_timer = Timer(random.randint(self.trigger_min, self.trigger_max)) #3-6 seconds
+        self.waiting_for_trigger = False
+        self.wait_for_turn = False
+
+        self.current_entity = game.player
+        self.change_scene_to = "none"
 
     def run(self, game):
-        
         #Turns
-        if game.turn == "player" and not game.gun_chamber.rotating and not game.enemy.animating:
+        if game.turn == "player" and not game.gun_chamber.rotating and not game.enemy.animating and not self.waiting_for_trigger and not self.wait_for_turn:
+            self.current_entity = game.player
             self.player_turn(game)
-        game.turn = "player"
-        # elif game.turn == "enemy" and not game.gun_chamber.rotating and not game.player.animating:
-        #     #Wait a bit to create the illusion of the enemy deciding to make a choice
-        #     if not self.enemy_wait.active:
-        #         print("activated enemy timer")
-        #         self.enemy_wait.activate()
+        #game.turn = "player"
+        elif game.turn == "enemy" and not game.gun_chamber.rotating and not game.player.animating and not self.waiting_for_trigger:
+            self.current_entity = game.enemy
 
-        #     if self.enemy_wait.if_ready():
-        #         print("ready for enemy tunr")
-        #         self.enemy_turn(game)
+            #Wait a bit to create the illusion of the enemy deciding to make a choice
+            if not self.enemy_wait.active:
+                print("activated enemy timer")
+                self.enemy_wait.activate()
+
+            if self.enemy_wait.if_ready():
+                print("ready for enemy tunr")
+                self.enemy_turn(game)
+
+
+        self.trigger_wait_effect(game)
 
         #Item use
-        if game.turn == "player" and not game.enemy.animating:
+        if game.turn == "player" and not game.enemy.animating and not self.waiting_for_trigger:
             for item in game.player.inventory:
                 if item.check_clicked(game.mpos, game.hover_status) and self.item_cooldown.if_ready():
                     self.item_cooldown.activate()
-                    print("used")
                     game.item_func_reference[item.type](game) #Call item function
                     game.player.inventory.remove(item)
                     game.player.update_items()
@@ -261,34 +290,35 @@ class GameLoop:
                 
                 game.who_is_dead = "enemy"
                 game.death_scene.dead_entity = game.enemy
-                game.death_text.change_text("You have killed the enemy..", "red")
+                game.death_text.change_text("You have killed the enemy..", game.death_txt_color)
                 game.death_text.pos = game.set_death_text_pos()
-                game.gamestate_manager.set_state("death scene")
+                game.player.animate_textures = game.player.shoot_textures
+
+                self.change_scene_to = "death scene"
 
             elif game.gun_chamber.slots[0] == "blank":
 
                 game.gun_chamber.rotating = True
                 game.gun_chamber.current_slot_status = "safe"
                 game.enemy.update_chamber()
-      
+                game.player.animate_textures = game.player.blank_shot_textures
 
-                game.turn = "enemy"
-
-            
-            game.player.animate_textures = game.player.shoot_textures
+            game.turn = "enemy"
+            self.wait_for_turn = True
             game.player.animating = True
             
         #Shooting self
         elif game.player.check_clicked(game.mpos):
             if game.gun_chamber.slots[0] == "loaded":
-                print("your dead")
+                print("u shot urself dead")
 
                 game.gun_chamber.current_slot_status = "loaded"
                 game.who_is_dead = "player"
                 game.death_scene.dead_entity = game.player
-                game.death_text.change_text("You are dead!", "red")
+                game.death_text.change_text("You are dead!", game.death_txt_color)
                 game.death_text.pos = game.set_death_text_pos()
-                self.gamestate_manager.set_state("death scene")
+                self.change_scene_to = "death scene"
+                game.player.blank_shot = False
 
             elif game.gun_chamber.slots[0] == "blank":
 
@@ -297,16 +327,16 @@ class GameLoop:
                 game.gun_chamber.current_slot_status = "safe"
                 game.enemy.update_chamber()
 
-                game.turn = "enemy"       
-                self.gamestate_manager.set_state("get item") 
+                if game.gun_chamber.visible_states[0] == "unknown":
+                    self.change_scene_to = "get item"
 
-                #game.player.animate_textures = game.player.shoot_self_safe
-
-            game.player.animate_textures = game.player.shoot_self_safe
+            game.turn = "enemy"
+            self.wait_for_turn = True
+            game.player.animate_textures = game.player.shoot_self
             game.player.animating = True
 
     def enemy_turn(self, game):
-         #Enemy Ai
+        #Enemy Ai
         if game.enemy.decision() == "shoot player":
             if game.gun_chamber.slots[0] == "loaded":
                 print("enemy has shot u")
@@ -316,22 +346,22 @@ class GameLoop:
                 
                 game.who_is_dead = "player"
                 game.death_scene.dead_entity = game.player
-                game.death_text.change_text("You are dead!", "red")
+                game.death_text.change_text("You are dead!", game.death_txt_color)
                 game.death_text.pos = game.set_death_text_pos()
-                self.gamestate_manager.set_state("death scene")
-                #game.enemy.animate_textures = game.enemy.shoot_textures
+                self.change_scene_to = "death scene"
 
-                
+                game.enemy.animate_textures = game.enemy.shoot_textures
             else:
                 print("enemy tried to shoot u")
 
                 game.gun_chamber.rotating = True
                 game.gun_chamber.current_slot_status = "safe"
                 game.enemy.update_chamber()
-                game.turn = "player"
+                #game.turn = "player"
 
-            game.enemy.animate_textures = game.enemy.shoot_textures
-            game.enemy.animating = True
+                game.enemy.animate_textures = game.enemy.blank_shot_textures
+
+
 
         elif game.enemy.decision() == "shoot self":
             if game.gun_chamber.slots[0] == "loaded":
@@ -340,9 +370,10 @@ class GameLoop:
 
                 game.who_is_dead = "enemy"
                 game.death_scene.dead_entity = game.enemy
-                game.death_text.change_text("The enemy is dead..", "red")
+                game.death_text.change_text("The enemy is dead..", game.death_txt_color)
                 game.death_text.pos = game.set_death_text_pos()
-                self.gamestate_manager.set_state("death scene")
+                game.enemy.blank_shot = False
+                self.change_scene_to = "death scene"
 
             else:
                 print("enemy tried to shoot themself")
@@ -350,25 +381,19 @@ class GameLoop:
                 game.gun_chamber.rotating = True
                 game.gun_chamber.current_slot_status = "safe"
                 game.enemy.update_chamber()
-                game.turn = "player"
 
-            
+            game.enemy.animate_textures = game.enemy.shoot_self
 
-            game.enemy.animate_textures = game.enemy.shoot_self_safe
-            game.enemy.animating = True
+        game.turn = "player"
+        self.wait_for_turn = True
+        game.enemy.animating = True
 
     def decide_bullet_count(self, game):
         
         minn = 1
         maxn = 1
 
-        if game.score >= 18:
-            minn = 2
-            maxn = 5
-        elif game.score >= 14:
-            minn = 1
-            maxn = 5
-        elif game.score >= 10:
+        if game.score >= 10:
             minn = 1
             maxn = 4
         elif game.score >= 6:
@@ -378,11 +403,53 @@ class GameLoop:
             minn = 1
             maxn = 2
 
-        game.bullet_count = random.randint(minn, maxn)
-        game.gun_chamber.new_slots(1)
+        game.gun_chamber.new_slots(random.randint(minn, maxn))
+
+    def trigger_wait_effect(self, game):
+        
+        #First we need to stop on the correct frame
+        #shooting self/ shooting blank = last frame
+        #Shooting rival = 4th frame
+
+        if not self.trigger_wait_timer.active:
+            if (self.current_entity.animate_textures == self.current_entity.shoot_self
+                or self.current_entity.animate_textures == self.current_entity.blank_shot_textures):
+                #print("blank or self textures")
+                #Last frame check. It would be better to do -1 but that cause a slight visually bug so imma leave it at 2
+                # -2 with a frame duration of 1 leaves the entity at the 2nd last frame
+                #But -1 with frame duration of 1 also creates the bug. for now imma just let the bug be
+                if self.current_entity.frame == (len(self.current_entity.animate_textures) * self.current_entity.frame_duration) - 2:  
+                    print("timer actived for blank or self")
+                    self.trigger_wait_timer.activate()
+                    self.current_entity.animating = False
+                    self.waiting_for_trigger = True
+
+            #Shooting rival
+            elif self.current_entity.animate_textures == self.current_entity.shoot_textures:
+                if self.current_entity.frame == 3 * self.current_entity.frame_duration:
+                    self.trigger_wait_timer.activate()
+                    self.current_entity.animating = False
+                    self.waiting_for_trigger = True
+
+        if self.trigger_wait_timer.if_ready():
+            if not self.change_scene_to == "death scene":
+                game.gun_click.play()
+
+
+            self.current_entity.animating = True
+            self.waiting_for_trigger = False
+            self.trigger_wait_timer.duration = random.randint(self.trigger_min,self.trigger_max)
+            self.wait_for_turn = False
+            #Changes the scene
+            if not self.change_scene_to == "none":
+                self.gamestate_manager.set_state(self.change_scene_to)
+                self.change_scene_to = "none"
 
     def graphics(self, game):
-        game.display.fill("dark grey")
+        #Background
+        game.display.blit(game.background)
+        #game.display.fill((35, 36, 35))
+        #game.floor.render(game.display)
 
         #Players
         game.player.render(game.display)
@@ -392,11 +459,11 @@ class GameLoop:
         if game.player.animating:
             game.player.animate()
 
-        elif game.enemy.animating:
+        if game.enemy.animating:
             game.enemy.animate()
 
         #Rotating animation
-        elif game.gun_chamber.rotating:
+        if game.gun_chamber.rotating and not self.waiting_for_trigger and not game.player.animating and not game.enemy.animating:
             game.gun_chamber.animate_rotate()
 
         game.gun_chamber.render(game.display)
@@ -480,10 +547,37 @@ class DeathScene:
         #Does the death animation when the previous animation is done
         play_death = (not self.dead_entity.animate_textures == self.dead_entity.shot_death 
                     and not self.game.player.animating and not self.game.enemy.animating)
-        if play_death:
+        if self.play_death():
+            #Animation
             self.dead_entity.animate_textures = self.dead_entity.shot_death
             self.dead_entity.animating = True
             self.dead_entity.texture_after_animation = self.dead_entity.shot_death[-1]
+
+            #Updated chamber
+            game.gun_chamber.current_slot_status = "loaded"
+            game.gun_chamber.update_chamber(False)
+            game.gun_chamber.add_state_textures()
+
+            #Eerie sound
+            pygame.mixer.music.stop()
+            self.game.gun_shot.play()
+            self.game.eerie_static.play(-1)
+
+    def play_death(self):
+        
+        #If death animation already played
+        if self.dead_entity.texture_after_animation == self.dead_entity.shot_death[-1]:
+            return False
+        
+        #If entity shots himself
+        elif self.dead_entity.animate_textures == self.dead_entity.shoot_self and not self.dead_entity.animating:
+            return True
+        
+        #If Entity gets shot, it syncs the death animation with the bullet shot animation by starting the death animation before it finishes
+        elif not self.dead_entity.animate_textures == self.dead_entity.shoot_self:
+            return True
+        
+        return False
     
     def exit_death(self):
         #When animation is done exit death scree
@@ -503,6 +597,7 @@ class DeathScene:
             self.game.turn = "player"
             self.game.update_score()
             self.game.update_highscore()
+            self.game.total_loaded_text.change_text(f"{self.game.gun_chamber.total_loaded} bullets", "black")
 
             #Reset entity var
             self.dead_entity.texture_after_animation = self.dead_entity.base_texture
@@ -514,6 +609,10 @@ class DeathScene:
             self.game.player.inventory.clear()
 
             self.gamestate_manager.set_state("game loop")
+
+            #Music
+            pygame.mixer.music.play(-1)
+            self.game.eerie_static.stop()
 
 
 if __name__ == "__main__":

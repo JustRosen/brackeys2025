@@ -17,14 +17,14 @@ def reveal(game):
 
 def gamble(game):
     game.player.animating = True
-    game.player.animate_textures = game.player.shoot_self_safe
+    game.player.animate_textures = game.player.shoot_self
 
     if game.gun_chamber.slot_states[0] == "loaded":
         print("u gambled and died")
         #Play death anim
         game.who_is_dead = "player"
         game.death_scene.dead_entity = game.player
-        game.gamestate_manager.set_state("death scene")
+        game.game_loop.change_scene_to = "death scene"
 
     elif game.gun_chamber.slot_states[0] in {"safe", "unknown"}: #If its not loaded
         game.gun_chamber.rotating = True
