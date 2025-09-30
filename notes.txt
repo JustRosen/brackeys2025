@@ -40,3 +40,4 @@ Added: Background Art
 Added: Only unknown slots give items
 Fixed: Chamber visuals will update after death to show the loaded slot
 Added: Game Icon
+Fixed: Bug where enemy was getting a new texture because it was unable to make a valid decision
