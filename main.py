@@ -147,12 +147,10 @@ class Game:
 
         self.states = {"game loop": self.game_loop, "get item": self.get_item, "death scene": self.death_scene}
 
-        asyncio.run(self.run())
 
     async def run(self):
 
         while True:
-            await asyncio.sleep(0)
             
             self.mpos = self.mouse_pos_in_display()
 
@@ -202,6 +200,8 @@ class Game:
             
             pygame.display.update()
             self.clock.tick(60)
+
+            await asyncio.sleep(0)
         
     def update_score(self):
         self.score_surf.change_text(f"Score: {self.score}", "black")
@@ -256,7 +256,7 @@ class GameLoop:
                 self.enemy_wait.activate()
 
             if self.enemy_wait.if_ready():
-                print("ready for enemy tunr")
+                print("ready for enemy turn")
                 self.enemy_turn(game)
 
 
@@ -337,7 +337,9 @@ class GameLoop:
 
     def enemy_turn(self, game):
         #Enemy Ai
-        if game.enemy.decision() == "shoot player":
+
+        decision = game.enemy.decision()
+        if decision == "shoot player":
             if game.gun_chamber.slots[0] == "loaded":
                 print("enemy has shot u")
 
@@ -363,7 +365,7 @@ class GameLoop:
 
 
 
-        elif game.enemy.decision() == "shoot self":
+        elif decision == "shoot self":
             if game.gun_chamber.slots[0] == "loaded":
                 print("enemy has shot themself to death")
                 
@@ -383,6 +385,10 @@ class GameLoop:
                 game.enemy.update_chamber()
 
             game.enemy.animate_textures = game.enemy.shoot_self
+
+        else:
+            print("smth went wrong. a valid decision was not returned. no new animate textures was applied")
+
 
         game.turn = "player"
         self.wait_for_turn = True
@@ -447,7 +453,7 @@ class GameLoop:
 
     def graphics(self, game):
         #Background
-        game.display.blit(game.background)
+        game.display.blit(game.background, (0,0))
         #game.display.fill((35, 36, 35))
         #game.floor.render(game.display)
 
@@ -545,8 +551,6 @@ class DeathScene:
         self.game.game_loop.graphics(self.game)
 
         #Does the death animation when the previous animation is done
-        play_death = (not self.dead_entity.animate_textures == self.dead_entity.shot_death 
-                    and not self.game.player.animating and not self.game.enemy.animating)
         if self.play_death():
             #Animation
             self.dead_entity.animate_textures = self.dead_entity.shot_death
@@ -617,3 +621,4 @@ class DeathScene:
 
 if __name__ == "__main__":
     game = Game()
+    asyncio.run(game.run())

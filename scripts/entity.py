@@ -36,6 +36,8 @@ class Player:
         self.item_y_offset = 5
         self.seperation = 8
 
+        #Other var
+        self.clicked = False
 
     def animate(self):
         
@@ -133,7 +135,7 @@ class Enemy:
 
         self.shoot_textures = load_images("enemy shoot")
         self.blank_shot_textures = load_images("enemy blank shot")
-        self.shoot_self= load_images("enemy shoot self safe")
+        self.shoot_self = load_images("enemy shoot self safe")
         self.with_gun_texture = self.shoot_textures[0]
         self.outlined_texture = self.outline_surface(self.base_texture, "red")
         self.shot_death = load_images("enemy death")
@@ -160,6 +162,9 @@ class Enemy:
         rect_pos = [self.pos[0], self.pos[1]]
         rect_size = [ self.base_texture.get_width(), self.base_texture.get_height()]
         self.box = pygame.Rect(rect_pos, rect_size)
+
+        #Other
+        self.clicked = False
 
    
     def check_clicked(self, mpos):
@@ -259,9 +264,8 @@ class Enemy:
 
         #hit_chance = hit_chance * self.chamber_state.count("known") + hit_chance
 
-        known_loaded = self.chamber_state.count("known")
-
-        if self.chamber_state[0] == "loaded" or known_loaded >= 5:
+        known_slots = self.chamber_state.count("known")
+        if self.chamber_state[0] == "loaded" or known_slots >= 5:
             return "shoot player"
-        elif known_loaded <= 4:
+        elif known_slots <= 4:
             return random.choice(['shoot self', 'shoot player'])
